@@ -1,98 +1,49 @@
 package delaterrealassiette;
 
-public abstract class Entite {
-    static private final int HITBOX_LARGEUR = 0;
-    static private final int HITBOX_HAUTEUR = 1;
+/**
+ *
+ * @author Antoine
+ */
 
-    protected int id;
+public abstract class Entite {
+    
+    // Coordonnées sur la carte (en pixels entiers)
     protected int x;
     protected int y;
-    protected int pv;
-    protected int pvMax;
-    protected int pas;
-    protected int porteeSaut;
-    protected int[] hitbox = new int[2];
-    private boolean modifie;
 
-    public abstract void mettreAJour();
-
-    public void subirDegats(int degats) {
-        // TODO
+    /**
+     * Constructeur de base.
+     */
+    public Entite(int x, int y) {
+        this.x = x;
+        this.y = y;
     }
 
-    public boolean estVivant() {
-        // TODO
-        return false;
+    /**
+     * Utilisé par le Dev Map pour positionner l'entité au spawn du niveau.
+     */
+    public void setPosition(int x, int y) {
+        this.x = x;
+        this.y = y;
     }
 
-    public int getId() {
-        // TODO
-        return 0;
-    }
-
+    // --- GETTERS POUR LES COLLISIONS ---
     public int getX() {
-        // TODO
-        return 0;
+        return x;
     }
 
     public int getY() {
-        // TODO
-        return 0;
+        return y;
     }
 
-    public int getHitbox(int index) {
-        // TODO
-        return 0;
-    }
-
-    public int getHitboxLargeur() {
-        // TODO
-        return 0;
-    }
-
-    public int getHitboxHauteur() {
-        // TODO
-        return 0;
-    }
-
-    public int getPv() {
-        // TODO
-        return 0;
-    }
-
-    public int getPvMax() {
-        // TODO
-        return 0;
-    }
-
-    public int getPas() {
-        // TODO
-        return 0;
-    }
-
-    public int getPorteeSaut() {
-        // TODO
-        return 0;
-    }
-
-    public void setPosition(int x, int y) {
-        // TODO
-    }
-
-    public void setPv(int pv) {
-        // TODO
-    }
-
-    protected void marquerModifie() {
-        // TODO
-    }
-
-    public boolean estModifie() {
-        // TODO
-        return false;
-    }
-
-    protected void effacerModifie() {
-        // TODO
-    }
+    // --- CONTRAT OBLIGATOIRE POUR JOUEUR ET MONSTRE ---
+    public abstract int[] getHitbox();
+    public abstract int getVitesse();
+    public abstract int getForceSaut();
+    public abstract String getCheminSprite();
+    
+    /**
+     * Boucle de jeu (calcul du mouvement, physique)
+     */
+    public abstract void mettreAJour();
 }
