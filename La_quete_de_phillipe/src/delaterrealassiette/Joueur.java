@@ -6,20 +6,43 @@ package delaterrealassiette;
  */
 
 public class Joueur extends Entite {
-    
+    //--Description IHM--
+    public static final int BtnHaut = 0;
+    public static final int BtnBas = 1;
+    public static final int BtnGauche = 2;
+    public static final int BtnDroite = 3;
+    public static final int BtnEtchebest = 4;
+    public static final int BtnLignac = 5;
+    public static final int BtnTarayre = 6;
+    public static final int BtnCompetence = 7; //clic gauche souris
+    public static final int BtnSauter = 8;
+
     // --- Données du joueur (à synchroniser avec la BDD SQL) ---
-    private String pseudo;
-    private int maxPv;
+    private final String pseudo;
+    private final int maxPv;
     private int pv;
     private int score;
     
-    // --- Gestion des chefs (Cartes d'identité) ---
-    private Avatar etchebest;
-    private Avatar lignac;
-    private Avatar tarayre;
+    // --- Gestion des chefs ---
+    private final Avatar etchebest;
+    private final Avatar lignac;
+    private final Avatar tarayre;
     
     // Chef actuellement contrôlé
     private Avatar avatarActuel;
+    
+    //--Gestion du controle--
+    private boolean allerHaut;
+    private boolean allerBas;
+    private boolean allerGauche;
+    private boolean allerDroite;
+    private boolean sauter;
+    
+    private boolean utiliserCompetence;
+    
+    private boolean devenirEtchebest;
+    private boolean devenirLignac;
+    private boolean devenirTarayre;
 
     /**
      * Constructeur du Joueur (Appelé depuis la FenetreMenu).
@@ -40,6 +63,18 @@ public class Joueur extends Entite {
         
         // Le joueur commence la partie avec Etchebest par défaut
         this.avatarActuel = this.etchebest;
+        
+        //controles a 0
+        this.allerHaut=false;
+        this.allerBas=false;
+        this.allerGauche=false;
+        this.allerDroite=false;
+        this.sauter=false;
+        this.utiliserCompetence=false;
+
+        this.devenirEtchebest=false;
+        this.devenirLignac=false;
+        this.devenirTarayre=false;
     }
 
     /**
@@ -129,5 +164,20 @@ public class Joueur extends Entite {
     
     public void ajouterScore(int points) {
         this.score += points;
+    }
+    
+    public void miseAJourIntentions(boolean[] etatTouches) {
+        // Transfert direct et brutal des états, sans aucun test conditionnel
+        this.allerHaut = etatTouches[BtnHaut];
+        this.allerBas = etatTouches[BtnBas];
+        this.allerGauche = etatTouches[BtnGauche];
+        this.allerDroite = etatTouches[BtnDroite];
+        this.sauter = etatTouches[BtnSauter];
+        
+        this.utiliserCompetence = etatTouches[BtnCompetence];
+        
+        this.devenirEtchebest = etatTouches[BtnEtchebest];
+        this.devenirLignac = etatTouches[BtnLignac];
+        this.devenirTarayre = etatTouches[BtnTarayre];
     }
 }
