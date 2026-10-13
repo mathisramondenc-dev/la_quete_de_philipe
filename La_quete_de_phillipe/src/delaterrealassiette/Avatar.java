@@ -1,54 +1,63 @@
+// Avatar.java
 package delaterrealassiette;
 
-/**
- *
- * @author Antoine
- */
-
+/* ________________________________________________________________
+ * ACTION : Regroupe les caractéristiques d'un chef jouable.
+ * [INFO] La hitbox contient la largeur puis la hauteur.
+ * [DEPENDANCE] Joueur utilise les caractéristiques de l'avatar actif.
+ * ________________________________________________________________ */
 public class Avatar {
-    
-    // Identité de l'avatar
-    private String nom;
-    
-    // Statistiques de déplacement
-    private int vitesse;
-    private int forceSaut;
-    
-    // Hitbox : liste contenant 2 entiers -> [largeur, hauteur]
-    private int[] hitbox;
+    private final String nom;
+    private final int vitesseDeplacementX;
+    private final int forceSaut;
+    private final int[] hitbox;
+    private final String cheminImage;
 
-    //Chemin du Sprite
-    private String cheminSprite;
-    /**
-     * Constructeur de l'Avatar
-     */
-    public Avatar(String nom, int vitesse, int forceSaut, int[] hitbox, String cheminSprite) {
+    /* ________________________________________________________________
+     * ACTION : Initialise les caractéristiques d'un avatar.
+     * [INFO] La hitbox contient la largeur puis la hauteur.
+     * ________________________________________________________________ */
+    public Avatar(String nom, int vitesseDeplacementX,
+            int forceSaut, int[] hitbox, String cheminImage) {
         this.nom = nom;
-        this.vitesse = vitesse;
+        this.vitesseDeplacementX = vitesseDeplacementX;
         this.forceSaut = forceSaut;
         this.hitbox = hitbox;
-        this.cheminSprite = cheminSprite;
+        this.cheminImage = cheminImage;
     }
 
-    // --- GETTERS ---
-
+    /* ________________________________________________________________
+     * ACTION : Retourne le nom de l'avatar.
+     * ________________________________________________________________ */
     public String getNom() {
         return nom;
     }
 
-    public int getVitesse() {
-        return vitesse;
+    /* ________________________________________________________________
+     * ACTION : Retourne la vitesse de déplacement sur l'axe x.
+     * ________________________________________________________________ */
+    public int getVitesseDeplacementX() {
+        return vitesseDeplacementX;
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne l'impulsion du saut.
+     * ________________________________________________________________ */
     public int getForceSaut() {
         return forceSaut;
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne la hitbox.
+     * ________________________________________________________________ */
     public int[] getHitbox() {
         return hitbox;
     }
-    
-    public String getCheminSprite() {
-        return cheminSprite;
+
+    /* ________________________________________________________________
+     * ACTION : Retourne le chemin de l'image.
+     * ________________________________________________________________ */
+    public String getCheminImage() {
+        return cheminImage;
     }
 }

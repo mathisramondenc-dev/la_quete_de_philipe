@@ -1,183 +1,244 @@
+// Joueur.java
 package delaterrealassiette;
 
-/**
- *
- * @author Antoine
- */
-
+/* ________________________________________________________________
+ * ACTION : Gère les avatars, les intentions et les données du joueur.
+ * [INFO] Les ordonnées augmentent vers le haut.
+ * [DEPENDANCE] Entite conserve la map partagée et résout les déplacements.
+ * ________________________________________________________________ */
 public class Joueur extends Entite {
-    //--Description IHM--
-    public static final int BtnHaut = 0;
-    public static final int BtnBas = 1;
-    public static final int BtnGauche = 2;
-    public static final int BtnDroite = 3;
-    public static final int BtnEtchebest = 4;
-    public static final int BtnLignac = 5;
-    public static final int BtnTarayre = 6;
-    public static final int BtnCompetence = 7; //clic gauche souris
-    public static final int BtnSauter = 8;
+    public static final int toucheHaut = 0;
+    public static final int toucheBas = 1;
+    public static final int toucheGauche = 2;
+    public static final int toucheDroite = 3;
+    public static final int toucheEtchebest = 4;
+    public static final int toucheLignac = 5;
+    public static final int toucheTarayre = 6;
+    public static final int toucheCompetence = 7;
+    public static final int toucheSauter = 8;
 
-    // --- Données du joueur (à synchroniser avec la BDD SQL) ---
     private final String pseudo;
-    private final int maxPv;
-    private int pv;
+    private final int pointsDeVieMax;
+    private int pointsDeVie;
     private int score;
-    
-    // --- Gestion des chefs ---
+
     private final Avatar etchebest;
     private final Avatar lignac;
     private final Avatar tarayre;
-    
-    // Chef actuellement contrôlé
     private Avatar avatarActuel;
-    
-    //--Gestion du controle--
-    private boolean allerHaut;
-    private boolean allerBas;
+
     private boolean allerGauche;
     private boolean allerDroite;
-    private boolean sauter;
-    
+    private boolean sautDemande;
+    private boolean toucheSautPrecedemmentAppuyee;
     private boolean utiliserCompetence;
-    
     private boolean devenirEtchebest;
     private boolean devenirLignac;
     private boolean devenirTarayre;
 
-    /**
-     * Constructeur du Joueur (Appelé depuis la FenetreMenu).
-     * On passe (0, 0) à Entite via super car la carte n'est pas encore chargée.
-     */
-    public Joueur(String pseudo) {
-        super(0, 0); 
-        
+    /* ________________________________________________________________
+     * ACTION : Initialise le joueur et ses trois avatars.
+     * [DEPENDANCE] Jeu transmet son unique instance de Map.
+     * ________________________________________________________________ */
+    public Joueur(Map map, String pseudo) {
+        super(map, 0, 0);
         this.pseudo = pseudo;
-        this.maxPv = 100;
-        this.pv = this.maxPv; // On commence avec tous les PV
-        this.score = 0;
-        
-        // Initialisation des 3 avatars
-        this.etchebest = new Avatar("Etchebest", 5, 12, new int[]{32, 64}, "/sprites/etchebest.png");
-        this.lignac = new Avatar("Lignac", 7, 15, new int[]{28, 60}, "/sprites/lignac.png");
-        this.tarayre = new Avatar("Tarayre", 6, 10, new int[]{30, 58}, "/sprites/tarayre.png");
-        
-        // Le joueur commence la partie avec Etchebest par défaut
-        this.avatarActuel = this.etchebest;
-        
-        //controles a 0
-        this.allerHaut=false;
-        this.allerBas=false;
-        this.allerGauche=false;
-        this.allerDroite=false;
-        this.sauter=false;
-        this.utiliserCompetence=false;
+        pointsDeVieMax = 100;
+        pointsDeVie = pointsDeVieMax;
 
-        this.devenirEtchebest=false;
-        this.devenirLignac=false;
-        this.devenirTarayre=false;
+        etchebest = new Avatar("Etchebest", 5, 12,
+                new int[]{32, 64}, "/sprites/etchebest.png");
+        lignac = new Avatar("Lignac", 7, 15,
+                new int[]{28, 60}, "/sprites/lignac.png");
+        tarayre = new Avatar("Tarayre", 6, 10,
+                new int[]{30, 58}, "/sprites/tarayre.png");
+
+        avatarActuel = etchebest;
     }
 
-    /**
-     * Change le chef actuellement contrôlé par le joueur.
-     */
-    public void switchChef(Avatar nouvelAvatar) {
-        this.avatarActuel = nouvelAvatar;
+    /* ________________________________________________________________
+     * ACTION : Change l'avatar contrôlé.
+     * ________________________________________________________________ */
+    public void changerChef(Avatar nouvelAvatar) {
+        avatarActuel = nouvelAvatar;
     }
 
-    // Getters pour permettre le switch vers les autres avatars
-    public Avatar getEtchebest() { return etchebest; }
-    public Avatar getLignac() { return lignac; }
-    public Avatar getTarayre() { return tarayre; }
+    /* ________________________________________________________________
+     * ACTION : Retourne le profil Etchebest.
+     * ________________________________________________________________ */
+    public Avatar getEtchebest() {
+        return etchebest;
+    }
 
-    // ==========================================================
-    // MÉTHODES REDÉFINIES DE LA CLASSE ENTITE 
-    // ==========================================================
+    /* ________________________________________________________________
+     * ACTION : Retourne le profil Lignac.
+     * ________________________________________________________________ */
+    public Avatar getLignac() {
+        return lignac;
+    }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne le profil Tarayre.
+     * ________________________________________________________________ */
+    public Avatar getTarayre() {
+        return tarayre;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne la vitesse de l'avatar actif.
+     * ________________________________________________________________ */
     @Override
     public int getVitesse() {
-        return avatarActuel.getVitesse();
+        return avatarActuel.getVitesseDeplacementX();
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne l'impulsion de l'avatar actif.
+     * ________________________________________________________________ */
     @Override
     public int getForceSaut() {
         return avatarActuel.getForceSaut();
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne la hitbox de l'avatar actif.
+     * ________________________________________________________________ */
     @Override
     public int[] getHitbox() {
         return avatarActuel.getHitbox();
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne le chemin de l'image de l'avatar actif.
+     * ________________________________________________________________ */
     @Override
-    public String getCheminSprite() {
-        return avatarActuel.getCheminSprite();
+    public String getCheminImage() {
+        return avatarActuel.getCheminImage();
     }
 
+    /* ________________________________________________________________
+     * ACTION : Applique les intentions, la gravité et le saut.
+     * [INFO] L'origine de la hitbox est le coin inférieur gauche.
+     * [DEPENDANCE] La map détecte les collisions et Entite résout les déplacements.
+     * ________________________________________________________________ */
     @Override
     public void mettreAJour() {
-        // TODO : Gestion des touches du clavier et gravité
+        // Gestion du changement de chef
+        if (devenirEtchebest) {
+            changerChef(etchebest);
+        }
+        if (devenirLignac) {
+            changerChef(lignac);
+        }
+        if (devenirTarayre) {
+            changerChef(tarayre);
+        }
+
+        // Gestion des intentions sur l'axe x
+        vitesseX = 0;
+
+        if (allerGauche) {
+            vitesseX -= getVitesse();
+        }
+        if (allerDroite) {
+            vitesseX += getVitesse();
+        }
+
+        // Gestion du sol et de la gravité
+        int[] hitbox = getHitbox();
+        boolean estAuSol = map.collisionHitbox(
+                positionX, positionY - 1, hitbox[0], hitbox[1])
+                && vitesseY <= 0;
+
+        if (estAuSol) {
+            vitesseY = 0;
+        } else {
+            vitesseY = Math.max(vitesseY + gravite, vitesseYMin);
+        }
+
+        // Gestion du saut
+        if (sautDemande && estAuSol) {
+            vitesseY = getForceSaut();
+        }
+        sautDemande = false;
+
+        deplacer();
     }
 
-    // ==========================================================
-    // GETTERS & SETTERS (Multijoueur et BDD)
-    // ==========================================================
-    
+    /* ________________________________________________________________
+     * ACTION : Enregistre les intentions issues des touches.
+     * [INFO] Le saut est demandé uniquement au nouvel appui.
+     * ________________________________________________________________ */
+    public void miseAJourIntentions(boolean[] touchesAppuyees) {
+        allerGauche = touchesAppuyees[toucheGauche];
+        allerDroite = touchesAppuyees[toucheDroite];
+
+        boolean toucheSautAppuyee = touchesAppuyees[toucheSauter];
+        if (toucheSautAppuyee && !toucheSautPrecedemmentAppuyee) {
+            sautDemande = true;
+        }
+        toucheSautPrecedemmentAppuyee = toucheSautAppuyee;
+
+        utiliserCompetence = touchesAppuyees[toucheCompetence];
+        devenirEtchebest = touchesAppuyees[toucheEtchebest];
+        devenirLignac = touchesAppuyees[toucheLignac];
+        devenirTarayre = touchesAppuyees[toucheTarayre];
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne le nom de l'avatar actif.
+     * ________________________________________________________________ */
     public String getNomAvatarActuel() {
-        return (avatarActuel != null) ? avatarActuel.getNom() : "";
+        return avatarActuel.getNom();
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne le pseudo du joueur.
+     * ________________________________________________________________ */
     public String getPseudo() {
         return pseudo;
     }
 
-    public int getMaxPv() {
-        return maxPv;
+    /* ________________________________________________________________
+     * ACTION : Retourne le maximum de points de vie.
+     * ________________________________________________________________ */
+    public int getPointsDeVieMax() {
+        return pointsDeVieMax;
     }
 
-    public int getPv() {
-        return pv;
-    }
-    
-    /**
-     * Modifie les PV du joueur de manière sécurisée.
-     */
-    public void modifierPv(int montant) {
-        this.pv += montant;
-        
-        if (this.pv <= 0) {
-            this.pv = 0;
-        } else if (this.pv > this.maxPv) {
-            this.pv = this.maxPv;
-        }
+    /* ________________________________________________________________
+     * ACTION : Retourne les points de vie actuels.
+     * ________________________________________________________________ */
+    public int getPointsDeVie() {
+        return pointsDeVie;
     }
 
-    /**
-     * Retourne true si le joueur n'a plus de points de vie.
-     */
+    /* ________________________________________________________________
+     * ACTION : Modifie les points de vie dans leurs limites.
+     * ________________________________________________________________ */
+    public void modifierPointsDeVie(int montant) {
+        pointsDeVie = Math.max(0,
+                Math.min(pointsDeVieMax, pointsDeVie + montant));
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si le joueur est mort.
+     * ________________________________________________________________ */
     public boolean estMort() {
-        return this.pv <= 0;
+        return pointsDeVie <= 0;
     }
 
+    /* ________________________________________________________________
+     * ACTION : Retourne le score du joueur.
+     * ________________________________________________________________ */
     public int getScore() {
         return score;
     }
-    
+
+    /* ________________________________________________________________
+     * ACTION : Ajoute des points au score.
+     * ________________________________________________________________ */
     public void ajouterScore(int points) {
-        this.score += points;
-    }
-    
-    public void miseAJourIntentions(boolean[] etatTouches) {
-        // Transfert direct et brutal des états, sans aucun test conditionnel
-        this.allerHaut = etatTouches[BtnHaut];
-        this.allerBas = etatTouches[BtnBas];
-        this.allerGauche = etatTouches[BtnGauche];
-        this.allerDroite = etatTouches[BtnDroite];
-        this.sauter = etatTouches[BtnSauter];
-        
-        this.utiliserCompetence = etatTouches[BtnCompetence];
-        
-        this.devenirEtchebest = etatTouches[BtnEtchebest];
-        this.devenirLignac = etatTouches[BtnLignac];
-        this.devenirTarayre = etatTouches[BtnTarayre];
+        score += points;
     }
 }
