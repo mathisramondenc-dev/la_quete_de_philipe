@@ -45,7 +45,34 @@ class GestionBDD {
 }
 
 ' ===== BAS : MÉCANIQUES INTERNES =====
-class Carte
+class Map {
+  {static} -TUILES_TRAVERSABLES : int[]
+  -largeur : int
+  -hauteur : int
+  -tailleTuile : int
+  -tuiles : BufferedImage[]
+  -decor : int[][]
+  -modifie : boolean
+  --
+  +Map(nomFichier : String)
+  -decouperTileset(tileset : BufferedImage)
+  +miseAJour()
+  +rendu(contexte : Graphics2D)
+  --
+  +collisionHitbox(x : int, y : int, largeurHitbox : int, hauteurHitbox : int) : boolean
+  +estSolide(i : int, j : int) : boolean
+  --
+  +getTuile(i : int, j : int) : int
+  +setTuile(i : int, j : int, numero : int)
+  +getLargeur() : int
+  +getHauteur() : int
+  +getTailleTuile() : int
+  +getLargeurPixels() : int
+  +getHauteurPixels() : int
+  --
+  +estModifie() : boolean
+  +effacerModifie()
+}
 
 abstract class Entite {
   {static} -HITBOX_LARGEUR : int = 0
@@ -106,13 +133,14 @@ Main --> FenetreMenu : ouvre
 FenetreMenu --> Jeu : lance la partie
 Jeu --> FenetreDeJeu : ouvre
 
-Jeu *-- Carte
+Jeu *-- Map
 Jeu *-- Entite
 Jeu *-- GestionBDD
 
 Entite <|-- Joueur
 Entite <|-- Monstre
+Entite --> Map : collisions
 
 GestionBDD ..> Entite : lit / met à jour
-GestionBDD ..> Carte : lit / met à jour
+GestionBDD ..> Map : lit / met à jour
 @enduml
