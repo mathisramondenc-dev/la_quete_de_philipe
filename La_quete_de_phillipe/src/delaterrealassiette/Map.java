@@ -75,87 +75,6 @@ public class Map {
     }
 
     /* ________________________________________________________________
-     * ACTION : Découpe le tileset en tuiles numérotées ligne par ligne.
-     * ________________________________________________________________ */
-    private void decouperTileset(BufferedImage tileset) {
-        int nbColonnes = tileset.getWidth() / tailleTuile;
-        int nbLignes = tileset.getHeight() / tailleTuile;
-        tuiles = new BufferedImage[nbColonnes * nbLignes];
-        for (int i = 0; i < tuiles.length; i++) {
-            int x = (i % nbColonnes) * tailleTuile;
-            int y = (i / nbColonnes) * tailleTuile;
-            tuiles[i] = tileset.getSubimage(x, y, tailleTuile, tailleTuile);
-        }
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Actualise la map à chaque tour de boucle.
-     * [INFO] Vide pour l'instant, le décor est statique.
-     * ________________________________________________________________ */
-    public void miseAJour() {
-
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Dessine le décor tuile par tuile.
-     * ________________________________________________________________ */
-    public void rendu(Graphics2D contexte) {
-        // i parcourt les lignes, j parcourt les colonnes
-        for (int i = 0; i < hauteur; i++) {
-            for (int j = 0; j < largeur; j++) {
-                contexte.drawImage(tuiles[decor[i][j]], j * tailleTuile, i * tailleTuile, null);
-            }
-        }
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Indique si une hitbox placée en (x, y) chevauche une tuile solide.
-     * [INFO] Vide pour l'instant, à faire  
-     * ________________________________________________________________ */
-    public boolean collisionHitbox(int x, int y, int largeurHitbox, int hauteurHitbox) {
-        return false;
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Indique si la case ligne i, colonne j bloque les entités.
-     * [INFO] Hors du décor, les côtés sont solides, le haut et le bas non.
-     * ________________________________________________________________ */
-    public boolean estSolide(int i, int j) {
-        if (j < 0 || j >= largeur) {
-            return true;
-        }
-        if (i < 0 || i >= hauteur) {
-            return false;
-        }
-        for (int numero : TUILES_TRAVERSABLES) {
-            if (decor[i][j] == numero) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Retourne le numéro de tuile ligne i, colonne j.
-     * ________________________________________________________________ */
-    public int getTuile(int i, int j) {
-        return decor[i][j];
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Change le numéro de tuile ligne i, colonne j.
-     * [INFO] Une case hors du décor est ignorée.
-     * [DEPENDANCE] GestionBDD exporte la map quand elle est modifiée.
-     * ________________________________________________________________ */
-    public void setTuile(int i, int j, int numero) {
-        if (i < 0 || i >= hauteur || j < 0 || j >= largeur || decor[i][j] == numero) {
-            return;
-        }
-        decor[i][j] = numero;
-        modifie = true;
-    }
-
-    /* ________________________________________________________________
      * ACTION : Retourne la largeur en nombre de tuiles.
      * ________________________________________________________________ */
     public int getLargeur() {
@@ -191,6 +110,26 @@ public class Map {
     }
 
     /* ________________________________________________________________
+     * ACTION : Retourne le numéro de tuile ligne i, colonne j.
+     * ________________________________________________________________ */
+    public int getTuile(int i, int j) {
+        return decor[i][j];
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Change le numéro de tuile ligne i, colonne j.
+     * [INFO] Une case hors du décor est ignorée.
+     * [DEPENDANCE] GestionBDD exporte la map quand elle est modifiée.
+     * ________________________________________________________________ */
+    public void setTuile(int i, int j, int numero) {
+        if (i < 0 || i >= hauteur || j < 0 || j >= largeur || decor[i][j] == numero) {
+            return;
+        }
+        decor[i][j] = numero;
+        modifie = true;
+    }
+
+    /* ________________________________________________________________
      * ACTION : Indique si le décor a changé depuis le dernier export.
      * ________________________________________________________________ */
     public boolean estModifie() {
@@ -202,5 +141,94 @@ public class Map {
      * ________________________________________________________________ */
     public void effacerModifie() {
         modifie = false;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Découpe le tileset en tuiles numérotées ligne par ligne.
+     * ________________________________________________________________ */
+    private void decouperTileset(BufferedImage tileset) {
+        int nbColonnes = tileset.getWidth() / tailleTuile;
+        int nbLignes = tileset.getHeight() / tailleTuile;
+        tuiles = new BufferedImage[nbColonnes * nbLignes];
+        for (int i = 0; i < tuiles.length; i++) {
+            int x = (i % nbColonnes) * tailleTuile;
+            int y = (i / nbColonnes) * tailleTuile;
+            tuiles[i] = tileset.getSubimage(x, y, tailleTuile, tailleTuile);
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Actualise la map à chaque tour de boucle.
+     * [INFO] Vide pour l'instant, le décor est statique.
+     * ________________________________________________________________ */
+    public void miseAJour() {
+
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Dessine le décor tuile par tuile.
+     * ________________________________________________________________ */
+    public void rendu(Graphics2D contexte) {
+        // i parcourt les lignes, j parcourt les colonnes
+        for (int i = 0; i < hauteur; i++) {
+            for (int j = 0; j < largeur; j++) {
+                contexte.drawImage(tuiles[decor[i][j]], j * tailleTuile, i * tailleTuile, null);
+            }
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si la case ligne i, colonne j bloque les entités.
+     * [INFO] Hors du décor, les côtés sont solides, le haut et le bas non.
+     * ________________________________________________________________ */
+    public boolean estSolide(int i, int j) {
+        if (j < 0 || j >= largeur) {
+            return true;
+        }
+        if (i < 0 || i >= hauteur) {
+            return false;
+        }
+        //On verifie si le numero de la tuile est parmi celles traversables
+        for (int numero : TUILES_TRAVERSABLES) {
+            if (decor[i][j] == numero) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si une hitbox placée en (x, y) chevauche une tuile solide.
+     * [INFO] L'origine de la hitbox est en bas à gauche et y monte.
+     * [INFO] On suppose que y = 0 correspond au bas du décor.
+     * ________________________________________________________________ */
+    public boolean collisionHitbox(int x, int y, int largeurHitbox, int hauteurHitbox) {
+        // Bords de la hitbox en pixels, -1 car le pixel numéro 0 existe
+        int Hitbox_Pixel_Gauche = x;
+        int Hitbox_Pixel_Droite = x + largeurHitbox - 1;
+        int Hitbox_Pixel_Bas = y;
+        int Hitbox_Pixel_Haut = y + hauteurHitbox - 1;
+
+        // On prends le complementaire parce que la position d'un joueur est prise du sol alors que le decor du haut
+        int Hitbox_Pixel_Haut_Ecran = getHauteurPixels() - 1 - Hitbox_Pixel_Haut;
+        int Hitbox_Pixel_Bas_Ecran = getHauteurPixels() - 1 - Hitbox_Pixel_Bas;
+
+        // Pixels -> tuiles, floorDiv car en Java -1 / 32 vaut 0 et pas -1
+        int Hitbox_Tuile_Gauche = Math.floorDiv(Hitbox_Pixel_Gauche, tailleTuile);
+        int Hitbox_Tuile_Droite = Math.floorDiv(Hitbox_Pixel_Droite, tailleTuile);
+        int Hitbox_Tuile_Haut = Math.floorDiv(Hitbox_Pixel_Haut_Ecran, tailleTuile);
+        int Hitbox_Tuile_Bas = Math.floorDiv(Hitbox_Pixel_Bas_Ecran, tailleTuile);
+
+        // i parcourt les lignes du haut vers le bas, j les colonnes de gauche à droite
+        for (int i = Hitbox_Tuile_Haut; i <= Hitbox_Tuile_Bas; i++) {
+            for (int j = Hitbox_Tuile_Gauche; j <= Hitbox_Tuile_Droite; j++) {
+                if (estSolide(i, j)) {
+                    return true;
+                }
+            }
+        }
+
+        // Aucune tuile solide sous la hitbox, donc pas de collision
+        return false;
     }
 }
