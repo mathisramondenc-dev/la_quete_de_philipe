@@ -210,14 +210,14 @@ public class Map {
         int Hitbox_Pixel_Haut = y + hauteurHitbox - 1;
 
         // On prends le complementaire parce que la position d'un joueur est prise du sol alors que le decor du haut
-        int Hitbox_Pixel_Haut_Ecran = getHauteurPixels() - 1 - Hitbox_Pixel_Haut;
-        int Hitbox_Pixel_Bas_Ecran = getHauteurPixels() - 1 - Hitbox_Pixel_Bas;
+        int Hitbox_Pixel_Haut_Decor = getHauteurPixels() - 1 - Hitbox_Pixel_Haut;
+        int Hitbox_Pixel_Bas_Decor = getHauteurPixels() - 1 - Hitbox_Pixel_Bas;
 
         // Pixels -> tuiles, floorDiv car en Java -1 / 32 vaut 0 et pas -1
         int Hitbox_Tuile_Gauche = Math.floorDiv(Hitbox_Pixel_Gauche, tailleTuile);
         int Hitbox_Tuile_Droite = Math.floorDiv(Hitbox_Pixel_Droite, tailleTuile);
-        int Hitbox_Tuile_Haut = Math.floorDiv(Hitbox_Pixel_Haut_Ecran, tailleTuile);
-        int Hitbox_Tuile_Bas = Math.floorDiv(Hitbox_Pixel_Bas_Ecran, tailleTuile);
+        int Hitbox_Tuile_Haut = Math.floorDiv(Hitbox_Pixel_Haut_Decor, tailleTuile);
+        int Hitbox_Tuile_Bas = Math.floorDiv(Hitbox_Pixel_Bas_Decor, tailleTuile);
 
         // i parcourt les lignes du haut vers le bas, j les colonnes de gauche à droite
         for (int i = Hitbox_Tuile_Haut; i <= Hitbox_Tuile_Bas; i++) {
