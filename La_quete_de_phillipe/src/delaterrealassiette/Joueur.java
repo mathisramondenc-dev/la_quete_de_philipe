@@ -46,12 +46,12 @@ public class Joueur extends Entite {
         pointsDeVieMax = 100;
         pointsDeVie = pointsDeVieMax;
 
-        etchebest = new Avatar("Etchebest", 5, 12,
+        etchebest = new Avatar("Etchebest", 6, 30,
                 new int[]{32, 64}, "/sprites/etchebest.png");
-        lignac = new Avatar("Lignac", 7, 15,
+        lignac = new Avatar("Lignac", 10, 40,
                 new int[]{28, 60}, "/sprites/lignac.png");
-        tarayre = new Avatar("Tarayre", 6, 10,
-                new int[]{30, 58}, "/sprites/tarayre.png");
+        tarayre = new Avatar("Tarayre", 8, 30,
+                new int[]{30, 30}, "/sprites/tarayre.png");
 
         avatarActuel = etchebest;
     }

@@ -11,7 +11,7 @@ public abstract class Entite {
     protected int positionY;
     protected int vitesseX;
     protected int vitesseY;
-    protected int gravite = -4;
+    protected int gravite = -6;
     protected int vitesseYMin = -12;
     protected final Map map;
 

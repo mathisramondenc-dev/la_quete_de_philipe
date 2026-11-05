@@ -25,6 +25,8 @@ import javax.swing.Timer;
 public class FenetreDeJeu extends Fenetre implements ActionListener {
 
     public static final int DUREE_TIC = 40; // ms, soit 25 tics par seconde
+    public static final int LARGEUR_JEU = 60 * 32; // 1920 px
+    public static final int HAUTEUR_JEU = 33 * 32; // 1056 px
 
     private static final String[] NOMS_BOUTONS = {
         "Haut (Z / flèche haut)",
@@ -74,10 +76,10 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         }
 
         ecran = new JLabel();
-        ecran.setPreferredSize(new Dimension(LARGEUR, HAUTEUR));
+        ecran.setPreferredSize(new Dimension(LARGEUR_JEU, HAUTEUR_JEU));
         setContentPane(ecran);
 
-        framebuffer = new BufferedImage(LARGEUR, HAUTEUR, BufferedImage.TYPE_INT_ARGB);
+        framebuffer = new BufferedImage(LARGEUR_JEU, HAUTEUR_JEU, BufferedImage.TYPE_INT_ARGB);
         ecran.setIcon(new ImageIcon(framebuffer));
         contexte = framebuffer.createGraphics();
         contexte.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
@@ -90,6 +92,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
 
         timer = new Timer(DUREE_TIC, this);
         finaliserFenetre();
+        pack();
+        setLocationRelativeTo(null);
     }
 
     /* ________________________________________________________________
@@ -160,7 +164,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ________________________________________________________________ */
     private void renduDebug(boolean clic) {
         contexte.setColor(new Color(120, 170, 220));
-        contexte.fillRect(0, 0, LARGEUR, HAUTEUR);
+        contexte.fillRect(0, 0, LARGEUR_JEU, HAUTEUR_JEU);
 
         contexte.setFont(new Font("Monospaced", Font.BOLD, 16));
         contexte.setColor(Color.BLACK);
