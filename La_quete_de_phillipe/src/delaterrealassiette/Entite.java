@@ -18,7 +18,7 @@ public abstract class Entite {
     protected int vitesseX;
     protected int vitesseY;
     protected int gravite = -6;
-    protected int vitesseYMin = -12;
+    protected int vitesseYMin = -24;
     protected final Map map;
     private BufferedImage image;
     private String cheminImageCharge;

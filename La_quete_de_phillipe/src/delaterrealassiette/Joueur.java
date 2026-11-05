@@ -50,7 +50,7 @@ public class Joueur extends Entite {
         lignac = new Avatar("Lignac", 10, 40,
                 new int[]{28, 60}, "images/sprites/lignac.png");
         tarayre = new Avatar("Tarayre", 8, 30,
-                new int[]{30, 30}, "images/sprites/tarayre.png");
+                new int[]{18, 30}, "images/sprites/tarayre.png");
 
         avatarActuel = etchebest;
         chargerImage(avatarActuel.getCheminImage());
