@@ -39,6 +39,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     };
 
     private final Jeu jeu; // null en mode debug
+    private final InfosPartie infosPartie; // null hors multijoueur
     private final JLabel ecran;
     private final BufferedImage framebuffer;
     private final Graphics2D contexte;
@@ -53,9 +54,24 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * [INFO] La boucle ne démarre qu'avec demarrer().
      * ________________________________________________________________ */
     public FenetreDeJeu(Jeu jeu) {
+        this(jeu, null);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Construit la fenêtre pour une partie multijoueur.
+     * [INFO] Le pseudo et l'identifiant de la partie sont affichés
+     *        en haut à gauche de l'écran.
+     * [DEPENDANCE] Appelé par FenetreHeberger et FenetreRejoindre.
+     * ________________________________________________________________ */
+    public FenetreDeJeu(Jeu jeu, InfosPartie infosPartie) {
         super();
         // Sans Jeu, la fenêtre reste sur l'écran de debug
         this.jeu = jeu;
+        this.infosPartie = infosPartie;
+        if (infosPartie != null) {
+            setTitle(TITRE + " - " + infosPartie.getPseudo()
+                    + " - partie " + infosPartie.getIdentifiantPartie());
+        }
 
         ecran = new JLabel();
         ecran.setPreferredSize(new Dimension(LARGEUR, HAUTEUR));
@@ -108,8 +124,28 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         } else {
             renduDebug(clic);
         }
+        if (infosPartie != null) {
+            renduInfosPartie();
+        }
 
         ecran.repaint();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Affiche le pseudo et l'identifiant de la partie en haut
+     *          à gauche, par-dessus le jeu.
+     * ________________________________________________________________ */
+    private void renduInfosPartie() {
+        String ligne1 = infosPartie.getPseudo() + (infosPartie.estHote() ? " (hôte)" : "");
+        String ligne2 = "Partie " + infosPartie.getIdentifiantPartie();
+
+        contexte.setColor(new Color(0, 0, 0, 150)); // noir transparent
+        contexte.fillRoundRect(6, 6, 190, 44, 10, 10);
+        contexte.setColor(Color.WHITE);
+        contexte.setFont(new Font("SansSerif", Font.BOLD, 14));
+        contexte.drawString(ligne1, 14, 24);
+        contexte.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        contexte.drawString(ligne2, 14, 42);
     }
 
     /* ________________________________________________________________
