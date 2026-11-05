@@ -1,9 +1,15 @@
 package delaterrealassiette;
 
 public abstract class Monstre extends Entite {
-    private int direction = 1;  // à droite=1, à gauche=-1
+    private static final int DELAI_ENTRE_DEGATS = 60; // en tics
+
+    private final int vitesse;
+    private final int degats;
+    private final int[] hitbox;
+    private final String cheminImage;
+
+    private int direction = 1;          // 1 = droite, -1 = gauche
     private int delaiAvantDegats = 0;
-    private static final int DELAI_ENTRE_DEGATS = 60;
     
     public Monstre(Map map, int positionX, int positionY,int vitesse, int degats, int[] hitbox, String cheminImage) {
         super(map, positionX, positionY);
