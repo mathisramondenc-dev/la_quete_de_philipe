@@ -1,8 +1,7 @@
-// Avatar.java
 package delaterrealassiette;
 
 /* ________________________________________________________________
- * ACTION : Regroupe les caractéristiques d'un chef jouable.
+ * ACTION : Regroupe les caractéristiques et compétences d'un chef jouable.
  * [INFO] La hitbox contient la largeur puis la hauteur.
  * [DEPENDANCE] Joueur utilise les caractéristiques de l'avatar actif.
  * ________________________________________________________________ */

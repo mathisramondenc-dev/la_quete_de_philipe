@@ -1,4 +1,3 @@
-// Joueur.java
 package delaterrealassiette;
 
 /* ________________________________________________________________
@@ -47,13 +46,14 @@ public class Joueur extends Entite {
         pointsDeVie = pointsDeVieMax;
 
         etchebest = new Avatar("Etchebest", 6, 30,
-                new int[]{32, 64}, "/sprites/etchebest.png");
+                new int[]{32, 64}, "images/sprites/etchebest.png");
         lignac = new Avatar("Lignac", 10, 40,
-                new int[]{28, 60}, "/sprites/lignac.png");
+                new int[]{28, 60}, "images/sprites/lignac.png");
         tarayre = new Avatar("Tarayre", 8, 30,
-                new int[]{30, 30}, "/sprites/tarayre.png");
+                new int[]{30, 30}, "images/sprites/tarayre.png");
 
         avatarActuel = etchebest;
+        chargerImage(avatarActuel.getCheminImage());
     }
 
     /* ________________________________________________________________
@@ -61,6 +61,14 @@ public class Joueur extends Entite {
      * ________________________________________________________________ */
     public void changerChef(Avatar nouvelAvatar) {
         avatarActuel = nouvelAvatar;
+        chargerImage(avatarActuel.getCheminImage());
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne l'avatar actuellement contrôlé.
+     * ________________________________________________________________ */
+    public Avatar getAvatarActuel() {
+        return avatarActuel;
     }
 
     /* ________________________________________________________________
@@ -123,7 +131,6 @@ public class Joueur extends Entite {
      * ________________________________________________________________ */
     @Override
     public void mettreAJour() {
-        // Gestion du changement de chef
         if (devenirEtchebest) {
             changerChef(etchebest);
         }
@@ -134,7 +141,6 @@ public class Joueur extends Entite {
             changerChef(tarayre);
         }
 
-        // Gestion des intentions sur l'axe x
         vitesseX = 0;
 
         if (allerGauche) {
@@ -143,8 +149,12 @@ public class Joueur extends Entite {
         if (allerDroite) {
             vitesseX += getVitesse();
         }
+        if (vitesseX < 0) {
+            definirOrientationGauche(true);
+        } else if (vitesseX > 0) {
+            definirOrientationGauche(false);
+        }
 
-        // Gestion du sol et de la gravité
         int[] hitbox = getHitbox();
         boolean estAuSol = map.collisionHitbox(
                 positionX, positionY - 1, hitbox[0], hitbox[1])
@@ -156,7 +166,6 @@ public class Joueur extends Entite {
             vitesseY = Math.max(vitesseY + gravite, vitesseYMin);
         }
 
-        // Gestion du saut
         if (sautDemande && estAuSol) {
             vitesseY = getForceSaut();
         }
