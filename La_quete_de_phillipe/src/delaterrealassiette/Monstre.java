@@ -2,6 +2,7 @@ package delaterrealassiette;
 
 public class Monstre extends Entite {
     private static final int DELAI_ENTRE_DEGATS = 60; // en tics
+    private static final int CHUTE_MAX = 96; // pixels, soit 3 tuiles de 32 : au-delà, on considère que c'est un trou
 
     private final int vitesse;
     private final int degats;
@@ -41,20 +42,61 @@ public class Monstre extends Entite {
         return cheminImage;
     }
     
+    /* Place le monstre sur un sol libre, en reculant d'une tuile vers la
+    * gauche tant que la colonne est un mur ou un trou. */
+    private void placerSurSol(int xDepart) {
+        for (int x = xDepart; x >= 0; x -= map.getTailleTuile()) {
+            for (int y = map.getHauteurPixels() - hitbox[1]; y >= 1; y--) {
+                if (!map.collisionHitbox(x, y, hitbox[0], hitbox[1])
+                        && map.collisionHitbox(x, y - 1, hitbox[0], hitbox[1])) {
+                    definirPosition(x, y);
+                    return;
+                }
+            }
+        }
+    }
+    
+    /*
+    Pour vérifier si le monstre doit faire demi-tour ou s'il peut se placer sur la plateforme du dessous
+    */
+    
+    private boolean solAtteignable(int x) {
+    int yLimite = Math.max(0, positionY - 1 - CHUTE_MAX);
+    for (int y = positionY - 1; y >= yLimite; y--) {
+        if (map.collisionHitbox(x, y, 1, 1)) {
+            return true;
+        }
+    }
+    return false;
+    }
+    
+    
      /* ________________________________________________________________
      * ACTION : Avance dans la direction imposée, applique la gravité
-     *          et fait demi-tour en cas d'obstacle.
+     *          et fait demi-tour en cas d'obstacle/bord de map.
      * [INFO] Entite.deplacerX() met vitesseX à 0 en cas de collision :
-     *        c'est ce qui signale le mur.
+     *        c'est ce qui signale le mur. Il fait demi-tour devant un trou, 
+              sauf s’il y a un sol à moins de 96 px en dessous : dans ce cas il tombe dessus.
      * ________________________________________________________________ */
+    
     @Override
     public void mettreAJour() {
+        boolean estAuSol = map.collisionHitbox(
+            positionX, positionY - 1, hitbox[0], hitbox[1])
+            && vitesseY <= 0;
+
+    // Pixel juste sous le pied avant, après le déplacement prévu
+        int xAvant = (direction > 0)
+            ? positionX + hitbox[0] - 1 + vitesse
+            : positionX - vitesse;
+
+    // Au sol, mais plus de sol devant : on traite le trou comme un mur
+        if (estAuSol && !solAtteignable(xAvant)) {
+        direction = -direction;
+        }
+
         vitesseX = direction * vitesse;
 
-        // Gravité (même logique que Joueur)
-        boolean estAuSol = map.collisionHitbox(
-                positionX, positionY - 1, hitbox[0], hitbox[1])
-                && vitesseY <= 0;
         if (estAuSol) {
             vitesseY = 0;
         } else {
@@ -95,9 +137,13 @@ public class Monstre extends Entite {
         }
     }
     
-    
-    public static Monstre creerType1(Map map, int x, int y) {
-        return new Monstre(map, x, y, 2, 10, new int[]{32, 32}, "images/Type1Monstre.png");
+    /* 
+    * Création monstre de premier type
+    */
+    public static Monstre creerType1(Map map) {
+        Monstre m = new Monstre(map, 0, 0, 3, 10, new int[]{32, 32}, "/sprites/monstre1.png");
+        m.placerSurSol(map.getLargeurPixels() - m.hitbox[0] - map.getTailleTuile());
+        return m;
     }
                 
 }
