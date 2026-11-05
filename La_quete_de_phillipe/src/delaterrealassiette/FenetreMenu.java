@@ -2,23 +2,21 @@
 package delaterrealassiette;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.event.ActionListener;
 import javax.swing.BorderFactory;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 /* ________________________________________________________________
  * ACTION : Menu d'accueil avec le titre et le choix du mode de jeu.
- * [INFO] Un clic sur un bouton ferme le menu et ouvre la fenêtre de jeu,
- *        sur un des niveaux ou sur l'écran de debug.
- * [DEPENDANCE] Main ouvre cette fenêtre, elle ouvre FenetreDeJeu.
+ * [INFO] Ligne du haut : multijoueur (Héberger / Rejoindre).
+ *        Ligne du bas : lancement direct d'un niveau ou de l'écran de
+ *        debug, pratique pour tester sans passer par le multijoueur.
+ * [DEPENDANCE] Main ouvre cette fenêtre. Elle ouvre FenetreHeberger,
+ *              FenetreRejoindre ou directement FenetreDeJeu.
  * ________________________________________________________________ */
 public class FenetreMenu extends Fenetre {
 
@@ -30,21 +28,38 @@ public class FenetreMenu extends Fenetre {
 
         JPanel fond = new JPanel(new BorderLayout());
         fond.setPreferredSize(new Dimension(LARGEUR, HAUTEUR));
-        fond.setBackground(new Color(40, 30, 25));
+        fond.setBackground(COULEUR_FOND);
 
-        JLabel titre = new JLabel(TITRE, JLabel.CENTER);
-        titre.setFont(new Font("SansSerif", Font.BOLD, 40));
-        titre.setForeground(Color.WHITE);
-        titre.setBorder(BorderFactory.createEmptyBorder(40, 0, 0, 0));
+        JLabel titre = creerTexte(TITRE, 40, true);
+        titre.setHorizontalAlignment(JLabel.CENTER);
+        titre.setBorder(BorderFactory.createEmptyBorder(30, 0, 0, 0));
         fond.add(titre, BorderLayout.NORTH);
 
         JPanel centre = new JPanel(new GridBagLayout());
         centre.setOpaque(false);
         GridBagConstraints placement = new GridBagConstraints();
-        placement.insets = new Insets(0, 10, 0, 10);
-        centre.add(creerBouton("Niveau 1", e -> lancerPartie(new Jeu("niveau1.txt"))), placement);
-        centre.add(creerBouton("Niveau 2", e -> lancerPartie(new Jeu("niveau2.txt"))), placement);
-        centre.add(creerBouton("Debug", e -> lancerPartie(null)), placement);
+
+        // Ligne 1 : multijoueur
+        placement.gridy = 0;
+        placement.insets = new Insets(0, 15, 25, 15);
+        centre.add(creerBouton("Héberger", 240, 70, 24, e -> ouvrir(new FenetreHeberger())), placement);
+        centre.add(creerBouton("Rejoindre", 240, 70, 24, e -> ouvrir(new FenetreRejoindre())), placement);
+
+        // Ligne 2 : tests rapides (sans multijoueur)
+        JPanel tests = new JPanel(new GridBagLayout());
+        tests.setOpaque(false);
+        GridBagConstraints placementTest = new GridBagConstraints();
+        placementTest.insets = new Insets(0, 6, 0, 6);
+        tests.add(creerTexte("Test :", 14, false), placementTest);
+        tests.add(creerBouton("Niveau 1", 120, 35, 14, e -> lancerPartie(new Jeu("niveau1.txt"))), placementTest);
+        tests.add(creerBouton("Niveau 2", 120, 35, 14, e -> lancerPartie(new Jeu("niveau2.txt"))), placementTest);
+        tests.add(creerBouton("Debug", 120, 35, 14, e -> lancerPartie(null)), placementTest);
+
+        placement.gridy = 1;
+        placement.gridwidth = 2;
+        placement.insets = new Insets(0, 0, 0, 0);
+        centre.add(tests, placement);
+
         fond.add(centre, BorderLayout.CENTER);
 
         setContentPane(fond);
@@ -52,14 +67,11 @@ public class FenetreMenu extends Fenetre {
     }
 
     /* ________________________________________________________________
-     * ACTION : Crée un bouton du menu.
+     * ACTION : Ouvre une autre fenêtre (Héberger / Rejoindre) et ferme le menu.
      * ________________________________________________________________ */
-    private JButton creerBouton(String texte, ActionListener action) {
-        JButton bouton = new JButton(texte);
-        bouton.setFont(new Font("SansSerif", Font.BOLD, 24));
-        bouton.setPreferredSize(new Dimension(200, 70));
-        bouton.addActionListener(action);
-        return bouton;
+    private void ouvrir(Fenetre fenetre) {
+        fenetre.setVisible(true);
+        dispose();
     }
 
     /* ________________________________________________________________
