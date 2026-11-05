@@ -24,11 +24,11 @@ public class GestionBDD {
     /** Ouvre une connexion MariaDB. Paramètres système laquete.db.* ou variables LAQUETE_DB_* . */
     public void demarrer() {
         try {
-            String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "localhost");
+            String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
             String port = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
-            String base = parametre("laquete.db.name", "LAQUETE_DB_NAME", "la_quete_philippe");
-            String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "root");
-            String motDePasse = parametre("laquete.db.password", "LAQUETE_DB_PASSWORD", "");
+            String base = parametre("laquete.db.name", "LAQUETE_DB_NAME", "2026-2027_s1_vs1_tp2_la_quete_de_philippe");
+            String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "etudiant");
+            String motDePasse = parametre("laquete.db.password", "LAQUETE_DB_PASSWORD", "YTDTvj9TR3CDYCmP");
             String url = "jdbc:mariadb://" + hote + ":" + port + "/" + base;
             connexion = DriverManager.getConnection(url, utilisateur, motDePasse);
         } catch (SQLException e) {

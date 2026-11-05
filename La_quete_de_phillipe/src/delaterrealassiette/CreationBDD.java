@@ -8,28 +8,17 @@ import java.sql.Statement;
 
 /** Crée la base La Quête de Philippe, son schéma et les trois avatars jouables. */
 public class CreationBDD {
-    private static final String BASE = parametre("laquete.db.name", "LAQUETE_DB_NAME", "la_quete_philippe");
+    private static final String BASE = parametre("laquete.db.name", "LAQUETE_DB_NAME", "2026-2027_s1_vs1_tp2_la_quete_de_philippe");
 
     private CreationBDD() {
     }
 
     public static void main(String[] args) {
-        String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "localhost");
+        String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
         String port = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
-        String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "root");
-        String motDePasse = parametre("laquete.db.password", "LAQUETE_DB_PASSWORD", "");
-        String urlServeur = "jdbc:mariadb://" + hote + ":" + port + "/";
-        String urlBase = urlServeur + BASE;
-
-        try (Connection connexionServeur = DriverManager.getConnection(urlServeur, utilisateur, motDePasse);
-             Statement commande = connexionServeur.createStatement()) {
-            commande.executeUpdate("CREATE DATABASE IF NOT EXISTS `" + BASE
-                    + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        } catch (SQLException e) {
-            System.err.println("Création/accès au schéma impossible. Vérifiez MariaDB et les privilèges CREATE.");
-            e.printStackTrace();
-            return;
-        }
+        String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "etudiant");
+        String motDePasse = parametre("laquete.db.password", "LAQUETE_DB_PASSWORD", "YTDTvj9TR3CDYCmP");
+        String urlBase = "jdbc:mariadb://" + hote + ":" + port + "/" + BASE;
 
         try (Connection connexion = DriverManager.getConnection(urlBase, utilisateur, motDePasse);
              Statement commande = connexion.createStatement()) {
