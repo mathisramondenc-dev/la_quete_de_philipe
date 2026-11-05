@@ -12,11 +12,11 @@ import javax.swing.JPanel;
 
 /* ________________________________________________________________
  * ACTION : Menu d'accueil avec le titre et le choix du mode de jeu.
- * [INFO] Ligne du haut : multijoueur (Héberger / Rejoindre).
- *        Ligne du bas : lancement direct d'un niveau ou de l'écran de
- *        debug, pratique pour tester sans passer par le multijoueur.
- * [DEPENDANCE] Main ouvre cette fenêtre. Elle ouvre FenetreHeberger,
- *              FenetreRejoindre ou directement FenetreDeJeu.
+ * [INFO] En haut : "Se connecter à une partie" (multijoueur).
+ *        En bas : lancement direct d'un niveau ou de l'écran de
+ *        debug, pratique pour tester sans passer par la connexion.
+ * [DEPENDANCE] Main ouvre cette fenêtre. Elle ouvre FenetreConnexion
+ *              ou directement FenetreDeJeu.
  * ________________________________________________________________ */
 public class FenetreMenu extends Fenetre {
 
@@ -42,8 +42,8 @@ public class FenetreMenu extends Fenetre {
         // Ligne 1 : multijoueur
         placement.gridy = 0;
         placement.insets = new Insets(0, 15, 25, 15);
-        centre.add(creerBouton("Héberger", 240, 70, 24, e -> ouvrir(new FenetreHeberger())), placement);
-        centre.add(creerBouton("Rejoindre", 240, 70, 24, e -> ouvrir(new FenetreRejoindre())), placement);
+        centre.add(creerBouton("Se connecter à une partie", 420, 70, 24,
+                e -> ouvrir(new FenetreConnexion())), placement);
 
         // Ligne 2 : tests rapides (sans multijoueur)
         JPanel tests = new JPanel(new GridBagLayout());
@@ -56,7 +56,6 @@ public class FenetreMenu extends Fenetre {
         tests.add(creerBouton("Debug", 120, 35, 14, e -> lancerPartie(null)), placementTest);
 
         placement.gridy = 1;
-        placement.gridwidth = 2;
         placement.insets = new Insets(0, 0, 0, 0);
         centre.add(tests, placement);
 
@@ -67,7 +66,7 @@ public class FenetreMenu extends Fenetre {
     }
 
     /* ________________________________________________________________
-     * ACTION : Ouvre une autre fenêtre (Héberger / Rejoindre) et ferme le menu.
+     * ACTION : Ouvre une autre fenêtre (connexion) et ferme le menu.
      * ________________________________________________________________ */
     private void ouvrir(Fenetre fenetre) {
         fenetre.setVisible(true);
