@@ -1,6 +1,6 @@
 package delaterrealassiette;
 
-public abstract class Monstre extends Entite {
+public class Monstre extends Entite {
     private static final int DELAI_ENTRE_DEGATS = 60; // en tics
 
     private final int vitesse;
@@ -18,6 +18,8 @@ public abstract class Monstre extends Entite {
         this.hitbox = hitbox;
         this.cheminImage = cheminImage;
     }
+    
+    
     
     @Override
     public int[] getHitbox() {
@@ -92,5 +94,10 @@ public abstract class Monstre extends Entite {
             delaiAvantDegats = DELAI_ENTRE_DEGATS;
         }
     }
-                          
+    
+    
+    public static Monstre creerType1(Map map, int x, int y) {
+        return new Monstre(map, x, y, 2, 10, new int[]{32, 32}, "images/Type1Monstre.png");
+    }
+                
 }
