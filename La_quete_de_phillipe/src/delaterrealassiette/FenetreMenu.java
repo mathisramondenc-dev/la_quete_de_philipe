@@ -5,15 +5,19 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.ActionListener;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
 /* ________________________________________________________________
- * ACTION : Menu d'accueil avec le titre et le bouton START.
- * [INFO] Un clic sur START ferme le menu et ouvre la fenêtre de jeu.
+ * ACTION : Menu d'accueil avec le titre et le choix du mode de jeu.
+ * [INFO] Un clic sur un bouton ferme le menu et ouvre la fenêtre de jeu,
+ *        sur un des niveaux ou sur l'écran de debug.
  * [DEPENDANCE] Main ouvre cette fenêtre, elle ouvre FenetreDeJeu.
  * ________________________________________________________________ */
 public class FenetreMenu extends Fenetre {
@@ -34,14 +38,13 @@ public class FenetreMenu extends Fenetre {
         titre.setBorder(BorderFactory.createEmptyBorder(40, 0, 0, 0));
         fond.add(titre, BorderLayout.NORTH);
 
-        JButton boutonStart = new JButton("START");
-        boutonStart.setFont(new Font("SansSerif", Font.BOLD, 28));
-        boutonStart.setPreferredSize(new Dimension(220, 70));
-        boutonStart.addActionListener(e -> lancerPartie());
-
         JPanel centre = new JPanel(new GridBagLayout());
         centre.setOpaque(false);
-        centre.add(boutonStart);
+        GridBagConstraints placement = new GridBagConstraints();
+        placement.insets = new Insets(0, 10, 0, 10);
+        centre.add(creerBouton("Niveau 1", e -> lancerPartie(new Jeu("niveau1.txt"))), placement);
+        centre.add(creerBouton("Niveau 2", e -> lancerPartie(new Jeu("niveau2.txt"))), placement);
+        centre.add(creerBouton("Debug", e -> lancerPartie(null)), placement);
         fond.add(centre, BorderLayout.CENTER);
 
         setContentPane(fond);
@@ -49,11 +52,22 @@ public class FenetreMenu extends Fenetre {
     }
 
     /* ________________________________________________________________
-     * ACTION : Ferme le menu et ouvre la fenêtre de jeu.
-     * [DEPENDANCE] Plus tard : créer ici le Jeu et le passer à FenetreDeJeu.
+     * ACTION : Crée un bouton du menu.
      * ________________________________________________________________ */
-    private void lancerPartie() {
-        FenetreDeJeu fenetreDeJeu = new FenetreDeJeu();
+    private JButton creerBouton(String texte, ActionListener action) {
+        JButton bouton = new JButton(texte);
+        bouton.setFont(new Font("SansSerif", Font.BOLD, 24));
+        bouton.setPreferredSize(new Dimension(200, 70));
+        bouton.addActionListener(action);
+        return bouton;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Ferme le menu et ouvre la fenêtre de jeu.
+     * [INFO] Sans Jeu (null), la fenêtre affiche l'écran de debug.
+     * ________________________________________________________________ */
+    private void lancerPartie(Jeu jeu) {
+        FenetreDeJeu fenetreDeJeu = new FenetreDeJeu(jeu);
         fenetreDeJeu.setVisible(true);
         fenetreDeJeu.demarrer();
         dispose();

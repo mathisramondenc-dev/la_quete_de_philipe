@@ -18,9 +18,9 @@ import javax.swing.Timer;
  *          les DUREE_TIC ms), lit le clavier et la souris et dessine.
  * [INFO] Même principe que le FenetreDeJeu du prof : un framebuffer
  *        affiché dans un JLabel et un Timer qui appelle actionPerformed.
- * [INFO] Pour l'instant, l'écran affiche l'état des 9 boutons (test).
+ * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons.
  * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
- *              Plus tard : Jeu.miseAJour(etatBoutons) et Jeu.rendu(contexte).
+ *              Jeu reçoit ce tableau dans miseAJour et dessine dans rendu.
  * ________________________________________________________________ */
 public class FenetreDeJeu extends Fenetre implements ActionListener {
 
@@ -38,6 +38,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         "Sauter (Espace)"
     };
 
+    private final Jeu jeu; // null en mode debug
     private final JLabel ecran;
     private final BufferedImage framebuffer;
     private final Graphics2D contexte;
@@ -51,8 +52,10 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ACTION : Construit la fenêtre, le framebuffer et branche les écouteurs.
      * [INFO] La boucle ne démarre qu'avec demarrer().
      * ________________________________________________________________ */
-    public FenetreDeJeu() {
+    public FenetreDeJeu(Jeu jeu) {
         super();
+        // Sans Jeu, la fenêtre reste sur l'écran de debug
+        this.jeu = jeu;
 
         ecran = new JLabel();
         ecran.setPreferredSize(new Dimension(LARGEUR, HAUTEUR));
@@ -99,11 +102,13 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         boolean clic = clavierSouris.isClicSouris(); // avant getEtatBoutons()
         etatBoutons = clavierSouris.getEtatBoutons();
 
-        // TODO quand Jeu sera prêt :
-        // jeu.miseAJour(etatBoutons);   (Jeu transmet à joueur.miseAJourIntentions)
-        // jeu.rendu(contexte);
+        if (jeu != null) {
+            jeu.miseAJour(etatBoutons);
+            jeu.rendu(contexte);
+        } else {
+            renduDebug(clic);
+        }
 
-        renduTest(clic);
         ecran.repaint();
     }
 
@@ -115,10 +120,9 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     }
 
     /* ________________________________________________________________
-     * ACTION : Affichage provisoire pour tester le clavier et la souris.
-     * [INFO] À remplacer par jeu.rendu(contexte).
+     * ACTION : Affiche l'état du clavier et de la souris (mode debug).
      * ________________________________________________________________ */
-    private void renduTest(boolean clic) {
+    private void renduDebug(boolean clic) {
         contexte.setColor(new Color(120, 170, 220));
         contexte.fillRect(0, 0, LARGEUR, HAUTEUR);
 
