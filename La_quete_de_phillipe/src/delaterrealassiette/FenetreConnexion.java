@@ -1,12 +1,10 @@
-// FenetreRejoindre.java
+// FenetreConnexion.java
 package delaterrealassiette;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagLayout;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -16,16 +14,17 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 
 /* ________________________________________________________________
- * ACTION : Fenêtre pour rejoindre une partie hébergée par un autre
- *          joueur : pseudo, identifiant de la partie et mot de passe.
- * [INFO] Les champs sont vérifiés avant de lancer la partie, avec un
- *        message d'erreur (JOptionPane) si quelque chose ne va pas.
+ * ACTION : Fenêtre "Se connecter à une partie" : le joueur saisit son
+ *          pseudo, l'identifiant de la partie et le mot de passe.
+ * [INFO] Les trois champs sont obligatoires. Ils sont vérifiés avant
+ *        de lancer la partie, avec un message d'erreur (JOptionPane)
+ *        si quelque chose ne va pas.
  * [DEPENDANCE] Ouverte par FenetreMenu, ouvre FenetreDeJeu.
  *              Plus tard : vérifier la partie dans la BDD (voir TODO).
  * ________________________________________________________________ */
-public class FenetreRejoindre extends Fenetre {
+public class FenetreConnexion extends Fenetre {
 
-    // Niveau utilisé tant que la BDD ne donne pas celui choisi par l'hôte
+    // Niveau utilisé tant que la BDD ne donne pas celui de la partie
     private static final String NIVEAU_PAR_DEFAUT = "niveau1.txt";
 
     private final JTextField champPseudo;
@@ -33,16 +32,16 @@ public class FenetreRejoindre extends Fenetre {
     private final JPasswordField champMotDePasse;
 
     /* ________________________________________________________________
-     * ACTION : Construit le formulaire pour rejoindre une partie.
+     * ACTION : Construit le formulaire de connexion.
      * ________________________________________________________________ */
-    public FenetreRejoindre() {
+    public FenetreConnexion() {
         super();
 
         JPanel fond = new JPanel(new BorderLayout());
         fond.setBackground(COULEUR_FOND);
         fond.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
 
-        JLabel titre = creerTexte("Rejoindre une partie", 30, true);
+        JLabel titre = creerTexte("Se connecter à une partie", 30, true);
         titre.setHorizontalAlignment(JLabel.CENTER);
         fond.add(titre, BorderLayout.NORTH);
 
@@ -51,72 +50,66 @@ public class FenetreRejoindre extends Fenetre {
         champIdentifiant = new JTextField(15);
         champMotDePasse = new JPasswordField(15);
 
-        // L'identifiant est toujours en majuscules (k7px3m -> K7PX3M)
-        champIdentifiant.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyReleased(KeyEvent evenement) {
-                String texte = champIdentifiant.getText();
-                if (!texte.equals(texte.toUpperCase())) {
-                    int curseur = champIdentifiant.getCaretPosition();
-                    champIdentifiant.setText(texte.toUpperCase());
-                    champIdentifiant.setCaretPosition(curseur);
-                }
-            }
-        });
-
         JPanel formulaire = new JPanel(new GridBagLayout());
         formulaire.setOpaque(false);
         ajouterLigneFormulaire(formulaire, 0, "Pseudo :", champPseudo);
         ajouterLigneFormulaire(formulaire, 1, "Identifiant de la partie :", champIdentifiant);
-        ajouterLigneFormulaire(formulaire, 2, "Mot de passe de la partie :", champMotDePasse);
+        ajouterLigneFormulaire(formulaire, 2, "Mot de passe :", champMotDePasse);
         fond.add(formulaire, BorderLayout.CENTER);
 
         // ----- Boutons -----
-        JButton boutonRejoindre = creerBouton("Rejoindre", 200, 45, 18, e -> rejoindrePartie());
+        JButton boutonConnexion = creerBouton("Se connecter", 200, 45, 18, e -> seConnecter());
         JButton boutonRetour = creerBouton("Retour", 120, 45, 16, e -> retourMenu());
         JPanel boutons = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
         boutons.setOpaque(false);
         boutons.add(boutonRetour);
-        boutons.add(boutonRejoindre);
+        boutons.add(boutonConnexion);
         fond.add(boutons, BorderLayout.SOUTH);
 
         setContentPane(fond);
-        getRootPane().setDefaultButton(boutonRejoindre); // Entrée = Rejoindre
+        getRootPane().setDefaultButton(boutonConnexion); // Entrée = Se connecter
         setMinimumSize(new Dimension(560, 0));
         finaliserFenetre();
     }
 
     /* ________________________________________________________________
-     * ACTION : Vérifie les champs, puis rejoint la partie et ouvre le jeu.
-     * [INFO] En cas d'erreur, un message s'affiche et on reste ici.
+     * ACTION : Vérifie les trois champs, puis ouvre la partie.
+     * [INFO] Au premier champ invalide, un message s'affiche, le curseur
+     *        va dans ce champ et on reste sur cette fenêtre.
      * ________________________________________________________________ */
-    private void rejoindrePartie() {
+    private void seConnecter() {
         String pseudo = champPseudo.getText().trim();
-        String erreur = InfosPartie.verifierPseudo(pseudo);
-        if (erreur != null) {
-            afficherErreur(erreur);
-            champPseudo.requestFocus();
-            return;
-        }
-
-        String identifiant = champIdentifiant.getText().trim().toUpperCase();
-        erreur = InfosPartie.verifierIdentifiant(identifiant);
-        if (erreur != null) {
-            afficherErreur(erreur);
-            champIdentifiant.requestFocus();
-            return;
-        }
-
+        String identifiant = champIdentifiant.getText().trim();
         String motDePasse = new String(champMotDePasse.getPassword());
-        InfosPartie infos = InfosPartie.pourInvite(pseudo, identifiant, motDePasse);
+
+        if (!champValide(InfosPartie.verifierPseudo(pseudo), champPseudo)
+                || !champValide(InfosPartie.verifierIdentifiant(identifiant), champIdentifiant)
+                || !champValide(InfosPartie.verifierMotDePasse(motDePasse), champMotDePasse)) {
+            return;
+        }
+
+        InfosPartie infos = new InfosPartie(pseudo, identifiant, motDePasse);
 
         // TODO BDD : vérifier que la partie existe, que le mot de passe
         //            est correct, qu'il reste une place et que le pseudo
         //            n'est pas déjà pris. Si non : afficherErreur(...) et return.
-        //            Récupérer aussi le niveau choisi par l'hôte.
-        System.out.println("Partie rejointe : " + infos);
+        //            Récupérer aussi le niveau de la partie.
+        System.out.println("Connexion : " + infos);
 
         lancerPartie(infos);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne true si erreur vaut null. Sinon, affiche
+     *          l'erreur, place le curseur dans le champ et retourne false.
+     * ________________________________________________________________ */
+    private boolean champValide(String erreur, JTextField champ) {
+        if (erreur == null) {
+            return true;
+        }
+        afficherErreur(erreur);
+        champ.requestFocus();
+        return false;
     }
 
     /* ________________________________________________________________
@@ -138,7 +131,7 @@ public class FenetreRejoindre extends Fenetre {
     }
 
     private void afficherErreur(String message) {
-        JOptionPane.showMessageDialog(this, message, "Impossible de rejoindre la partie",
+        JOptionPane.showMessageDialog(this, message, "Connexion impossible",
                 JOptionPane.ERROR_MESSAGE);
     }
 }

@@ -18,13 +18,15 @@ import javax.swing.Timer;
  *          les DUREE_TIC ms), lit le clavier et la souris et dessine.
  * [INFO] Même principe que le FenetreDeJeu du prof : un framebuffer
  *        affiché dans un JLabel et un Timer qui appelle actionPerformed.
- * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons.
+ * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons
+ *        et tourne à IMAGES_PAR_SECONDE_DEBUG images par seconde.
  * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
  *              Jeu reçoit ce tableau dans miseAJour et dessine dans rendu.
  * ________________________________________________________________ */
 public class FenetreDeJeu extends Fenetre implements ActionListener {
 
     public static final int DUREE_TIC = 40; // ms, soit 25 tics par seconde
+    public static final int IMAGES_PAR_SECONDE_DEBUG = 24; // mode debug
     public static final int LARGEUR_JEU = 60 * 32; // 1920 px
     public static final int HAUTEUR_JEU = 33 * 32; // 1056 px
 
@@ -51,6 +53,12 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     private boolean[] etatBoutons = new boolean[ClavierSouris.NB_BOUTONS];
     private long numeroTic = 0;
 
+    // Mesure des images par seconde (affichée en mode debug)
+    private long debutBoucle;           // ms, instant du démarrage
+    private long debutSeconde;          // ms, début de la seconde en cours
+    private int imagesDansLaSeconde = 0;
+    private int imagesParSecondeMesurees = 0;
+
     /* ________________________________________________________________
      * ACTION : Construit la fenêtre, le framebuffer et branche les écouteurs.
      * [INFO] La boucle ne démarre qu'avec demarrer().
@@ -63,7 +71,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ACTION : Construit la fenêtre pour une partie multijoueur.
      * [INFO] Le pseudo et l'identifiant de la partie sont affichés
      *        en haut à gauche de l'écran.
-     * [DEPENDANCE] Appelé par FenetreHeberger et FenetreRejoindre.
+     * [DEPENDANCE] Appelé par FenetreConnexion.
      * ________________________________________________________________ */
     public FenetreDeJeu(Jeu jeu, InfosPartie infosPartie) {
         super();
@@ -102,7 +110,38 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ________________________________________________________________ */
     public void demarrer() {
         requestFocus();
+        debutBoucle = System.currentTimeMillis();
+        debutSeconde = debutBoucle;
+        if (jeu == null) {
+            timer.setDelay(1000 / IMAGES_PAR_SECONDE_DEBUG);
+        }
         timer.start();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : En mode debug, règle le délai avant le prochain tic pour
+     *          avoir exactement IMAGES_PAR_SECONDE_DEBUG images par seconde.
+     * [INFO] 1000 / 24 = 41,67 ms n'est pas un nombre entier : on vise
+     *        l'instant exact de la prochaine image (41 ou 42 ms selon le
+     *        tic), sinon on obtiendrait 24,4 ou 23,8 images par seconde.
+     * ________________________________________________________________ */
+    private void reglerProchainTicDebug() {
+        long prochaineImage = debutBoucle + (numeroTic + 1) * 1000 / IMAGES_PAR_SECONDE_DEBUG;
+        long attente = prochaineImage - System.currentTimeMillis();
+        timer.setDelay((int) Math.max(1, attente));
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Compte les images affichées pendant chaque seconde.
+     * ________________________________________________________________ */
+    private void mesurerImagesParSeconde() {
+        imagesDansLaSeconde++;
+        long maintenant = System.currentTimeMillis();
+        if (maintenant - debutSeconde >= 1000) {
+            imagesParSecondeMesurees = imagesDansLaSeconde;
+            imagesDansLaSeconde = 0;
+            debutSeconde += 1000;
+        }
     }
 
     /* ________________________________________________________________
@@ -127,7 +166,9 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
             jeu.rendu(contexte);
         } else {
             renduDebug(clic);
+            reglerProchainTicDebug();
         }
+        mesurerImagesParSeconde();
         if (infosPartie != null) {
             renduInfosPartie();
         }
@@ -140,7 +181,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      *          à gauche, par-dessus le jeu.
      * ________________________________________________________________ */
     private void renduInfosPartie() {
-        String ligne1 = infosPartie.getPseudo() + (infosPartie.estHote() ? " (hôte)" : "");
+        String ligne1 = infosPartie.getPseudo();
         String ligne2 = "Partie " + infosPartie.getIdentifiantPartie();
 
         contexte.setColor(new Color(0, 0, 0, 150)); // noir transparent
@@ -169,8 +210,10 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         contexte.setFont(new Font("Monospaced", Font.BOLD, 16));
         contexte.setColor(Color.BLACK);
         contexte.drawString("Tic n°" + numeroTic, 20, 30);
+        contexte.drawString("Images/s : " + imagesParSecondeMesurees
+                + " (objectif " + IMAGES_PAR_SECONDE_DEBUG + ")", 180, 30);
         contexte.drawString("Souris : (" + clavierSouris.getSourisX() + ", "
-                + clavierSouris.getSourisY() + ")" + (clic ? "  CLIC" : ""), 300, 30);
+                + clavierSouris.getSourisY() + ")" + (clic ? "  CLIC" : ""), 520, 30);
 
         contexte.setFont(new Font("Monospaced", Font.PLAIN, 16));
         for (int i = 0; i < ClavierSouris.NB_BOUTONS; i++) {

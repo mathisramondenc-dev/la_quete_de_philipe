@@ -16,8 +16,7 @@ import javax.swing.JPanel;
 /* ________________________________________________________________
  * ACTION : Base commune des fenêtres du jeu (titre, taille, fermeture,
  *          couleurs et petits outils pour construire les formulaires).
- * [DEPENDANCE] FenetreMenu, FenetreDeJeu, FenetreHeberger et
- *              FenetreRejoindre en héritent.
+ * [DEPENDANCE] FenetreMenu, FenetreConnexion et FenetreDeJeu en héritent.
  * ________________________________________________________________ */
 public abstract class Fenetre extends JFrame {
 
