@@ -223,4 +223,17 @@ public abstract class Entite {
      * ACTION : Actualise les intentions et les déplacements.
      * ________________________________________________________________ */
     public abstract void mettreAJour();
+
+    public void setPositionX(int positionX) {
+        this.positionX = positionX;
+    }
+
+    public void setPositionY(int positionY) {
+        this.positionY = positionY;
+    }
+    
+    
+    
+    
+
 }

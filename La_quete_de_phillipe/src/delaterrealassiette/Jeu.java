@@ -72,6 +72,10 @@ public class Jeu {
         for (Entite entite : entites) {
             entite.mettreAJour();
         }
+        if (estTombeDansLeVide()) {
+            reset();
+            return;
+        }
         for (Ingredient ingredient : ingredients) {
             if (!ingredient.isActif()) {
                 continue;
@@ -88,6 +92,23 @@ public class Jeu {
         if (inventaireRecette.estComplete()) {
             passerAuNiveauSuivant();
         }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si le joueur est entièrement passé sous la carte.
+     * [INFO] y = 0 correspond au bas du décor, le vide est donc en y négatif.
+     * ________________________________________________________________ */
+    private boolean estTombeDansLeVide() {
+        int hauteurHitbox = joueur.getHitbox()[1];
+        return joueur.getPositionY() + hauteurHitbox < 0;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Relance le niveau actuel comme au premier lancement.
+     * [INFO] Carte, ingrédients, inventaire et joueur sont recréés à neuf.
+     * ________________________________________________________________ */
+    private void reset() {
+        chargerNiveau(null);
     }
 
     /* ________________________________________________________________
