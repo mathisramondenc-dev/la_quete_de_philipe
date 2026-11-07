@@ -1,17 +1,28 @@
 package delaterrealassiette;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
 
 /* ________________________________________________________________
  * ACTION : Centralise la position et les déplacements des entités.
  * [INFO] L'origine de la hitbox est le coin inférieur gauche.
  * [DEPENDANCE] La map est créée par Jeu et fournit collisionHitbox.
  * ________________________________________________________________ */
-public abstract class Entite extends ElementDeJeu {
+public abstract class Entite {
+    protected int positionX;
+    protected int positionY;
     protected int vitesseX;
     protected int vitesseY;
     protected int gravite = -6;
     protected int vitesseYMin = -24;
     protected final Map map;
+    private BufferedImage image;
+    private String cheminImageCharge;
+    private boolean regardeVersLaGauche;
 
     /* ________________________________________________________________
      * ACTION : Initialise la position et la map de l'entité.
@@ -19,8 +30,9 @@ public abstract class Entite extends ElementDeJeu {
      * [DEPENDANCE] Jeu transmet son unique instance de Map.
      * ________________________________________________________________ */
     public Entite(Map map, int positionX, int positionY) {
-        super(positionX, positionY);
         this.map = map;
+        this.positionX = positionX;
+        this.positionY = positionY;
     }
 
     /* ________________________________________________________________
@@ -32,24 +44,72 @@ public abstract class Entite extends ElementDeJeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Charge l'image de l'entité depuis le cache commun.
+     * ACTION : Charge le sprite de l'entité depuis son chemin relatif.
+     * [INFO] Le chemin est résolu depuis le projet et l'image absente reste facultative.
      * ________________________________________________________________ */
     protected void chargerImage(String cheminImage) {
-        chargerImageDepuisCache(cheminImage);
+        image = null;
+        cheminImageCharge = cheminImage;
+        File fichier = new File(cheminImage);
+        if (cheminImage.startsWith("/sprites/")) {
+            fichier = new File("images" + cheminImage);
+        }
+        if (!fichier.isAbsolute() && !fichier.isFile()) {
+            File repertoire = new File(System.getProperty("user.dir"));
+            while (repertoire != null && !fichier.isFile()) {
+                fichier = new File(repertoire, cheminImage.startsWith("/sprites/")
+                        ? "images" + cheminImage : cheminImage);
+                repertoire = repertoire.getParentFile();
+            }
+        }
+
+        try {
+            if (fichier.isFile()) {
+                image = ImageIO.read(fichier);
+            }
+        } catch (IOException exception) {
+            image = null;
+        }
     }
 
     /* ________________________________________________________________
      * ACTION : Définit l'orientation du sprite.
      * ________________________________________________________________ */
     public void definirOrientationGauche(boolean regardeVersLaGauche) {
-        super.definirOrientationGauche(regardeVersLaGauche);
+        this.regardeVersLaGauche = regardeVersLaGauche;
     }
 
     /* ________________________________________________________________
      * ACTION : Retourne l'orientation gauche de l'entité.
      * ________________________________________________________________ */
     public boolean isRegardeVersLaGauche() {
-        return super.isRegardeVersLaGauche();
+        return regardeVersLaGauche;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Dessine le sprite ou la hitbox de remplacement.
+     * [INFO] Les coordonnées sont celles du coin supérieur gauche à l'écran.
+     * ________________________________________________________________ */
+    public void dessiner(Graphics2D contexte, int positionEcranX, int positionEcranY) {
+        String cheminImage = getCheminImage();
+        if (image == null || !java.util.Objects.equals(cheminImageCharge, cheminImage)) {
+            chargerImage(cheminImage);
+        }
+
+        int[] hitbox = getHitbox();
+        if (image != null) {
+            if (regardeVersLaGauche) {
+                contexte.drawImage(image, positionEcranX + hitbox[0], positionEcranY,
+                        -hitbox[0], hitbox[1], null);
+            } else {
+                contexte.drawImage(image, positionEcranX, positionEcranY, hitbox[0], hitbox[1], null);
+            }
+        } else {
+            Color couleurPrecedente = contexte.getColor();
+            contexte.setColor(Color.RED);
+            contexte.drawRect(positionEcranX, positionEcranY, hitbox[0] - 1, hitbox[1] - 1);
+            contexte.setColor(couleurPrecedente);
+        }
     }
 
     /* ________________________________________________________________

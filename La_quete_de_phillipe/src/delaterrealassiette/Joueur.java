@@ -57,6 +57,17 @@ public class Joueur extends Entite {
     }
 
     /* ________________________________________________________________
+     * ACTION : Recrée le joueur sur une nouvelle carte en conservant son état.
+     * [INFO] Les vitesses et les intentions repartent à zéro.
+     * ________________________________________________________________ */
+    public Joueur(Map nouvelleCarte, Joueur joueurPrecedent) {
+        this(nouvelleCarte, joueurPrecedent.pseudo);
+        changerChef(joueurPrecedent.avatarActuel);
+        pointsDeVie = joueurPrecedent.pointsDeVie;
+        score = joueurPrecedent.score;
+    }
+
+    /* ________________________________________________________________
      * ACTION : Change l'avatar contrôlé.
      * ________________________________________________________________ */
     public void changerChef(Avatar nouvelAvatar) {

@@ -162,10 +162,17 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         etatBoutons = clavierSouris.getEtatBoutons();
 
         if (jeu != null) {
-            jeu.miseAJour(etatBoutons);
-            jeu.rendu(contexte);
-            jeu.dessinerIngredients(contexte);
-            jeu.getInventaireRecette().dessiner(contexte, LARGEUR_JEU);
+            if (!jeu.isVictoire()) {
+                jeu.miseAJour(etatBoutons);
+            }
+            if (jeu.isVictoire()) {
+                timer.stop();
+                dessinerVictoire();
+            } else {
+                jeu.rendu(contexte);
+                jeu.dessinerIngredients(contexte);
+                jeu.getInventaireRecette().dessiner(contexte, LARGEUR_JEU);
+            }
         } else {
             renduDebug(clic);
             reglerProchainTicDebug();
@@ -176,6 +183,21 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         }
 
         ecran.repaint();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Affiche l’écran de victoire final.
+     * ________________________________________________________________ */
+    private void dessinerVictoire() {
+        contexte.setColor(new Color(18, 20, 28));
+        contexte.fillRect(0, 0, LARGEUR_JEU, HAUTEUR_JEU);
+        contexte.setColor(new Color(255, 220, 95));
+        contexte.setFont(new Font("SansSerif", Font.BOLD, 104));
+        String texte = "BRAVO !";
+        int x = (LARGEUR_JEU - contexte.getFontMetrics().stringWidth(texte)) / 2;
+        int y = (HAUTEUR_JEU - contexte.getFontMetrics().getHeight()) / 2
+                + contexte.getFontMetrics().getAscent();
+        contexte.drawString(texte, x, y);
     }
 
     /* ________________________________________________________________
