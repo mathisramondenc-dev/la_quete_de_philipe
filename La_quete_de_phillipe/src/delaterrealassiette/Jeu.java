@@ -72,7 +72,10 @@ public class Jeu {
         for (Entite entite : entites) {
             entite.mettreAJour();
         }
-        if (estTombeDansLeVide()) {
+        if (estTombeSousLaCarte(joueur)) {
+            joueur.modifierPointsDeVie(-joueur.getPointsDeVie());
+        }
+        if (joueur.estMort()) {
             reset();
             return;
         }
@@ -95,12 +98,12 @@ public class Jeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Indique si le joueur est entièrement passé sous la carte.
-     * [INFO] y = 0 correspond au bas du décor, le vide est donc en y négatif.
+     * ACTION : Indique si le joueur est entièrement sous la carte.
+     * [INFO] L'origine est en bas à gauche et la chute est sous y = 0.
+     * [DEPENDANCE] Utilise la position et la hitbox de l'entité vérifiée.
      * ________________________________________________________________ */
-    private boolean estTombeDansLeVide() {
-        int hauteurHitbox = joueur.getHitbox()[1];
-        return joueur.getPositionY() + hauteurHitbox < 0;
+    private boolean estTombeSousLaCarte(Joueur joueurAVerifier) {
+        return joueurAVerifier.getPositionY() + joueurAVerifier.getHitbox()[1] < 0;
     }
 
     /* ________________________________________________________________
