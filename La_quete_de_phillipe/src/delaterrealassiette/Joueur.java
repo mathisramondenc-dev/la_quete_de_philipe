@@ -30,6 +30,8 @@ public class Joueur extends Entite {
     private boolean allerDroite;
     private boolean sautDemande;
     private boolean toucheSautPrecedemmentAppuyee;
+    private boolean toucheCompetencePrecedemmentAppuyee;
+    private boolean activationLevierDemandee;
     private boolean utiliserCompetence;
     private boolean devenirEtchebest;
     private boolean devenirLignac;
@@ -200,9 +202,24 @@ public class Joueur extends Entite {
         toucheSautPrecedemmentAppuyee = toucheSautAppuyee;
 
         utiliserCompetence = touchesAppuyees[toucheCompetence];
+        if (utiliserCompetence && !toucheCompetencePrecedemmentAppuyee
+                && "Tarayre".equals(avatarActuel.getNom())) {
+            activationLevierDemandee = true;
+        }
+        toucheCompetencePrecedemmentAppuyee = utiliserCompetence;
         devenirEtchebest = touchesAppuyees[toucheEtchebest];
         devenirLignac = touchesAppuyees[toucheLignac];
         devenirTarayre = touchesAppuyees[toucheTarayre];
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Consomme la demande d'activation du levier.
+     * [INFO] Seul Tarayre transforme un nouvel appui sur E en demande.
+     * ________________________________________________________________ */
+    public boolean consommerActivationLevier() {
+        boolean demandee = activationLevierDemandee;
+        activationLevierDemandee = false;
+        return demandee;
     }
 
     /* ________________________________________________________________

@@ -35,6 +35,8 @@ public class Map {
 
     private boolean modifie;
     private final List<Ingredient> ingredients = new ArrayList<>();
+    private final List<Levier> leviers = new ArrayList<>();
+    private final List<BlocPorte> blocsPorte = new ArrayList<>();
 
     /* ________________________________________________________________
      * ACTION : Construit la map à partir d'un fichier texte FruitEditor.
@@ -68,24 +70,45 @@ public class Map {
                 }
                 i++;
             }
-            String ligne = fichier.readLine();
-            while (ligne != null && !"INGREDIENTS".equalsIgnoreCase(ligne.trim())) {
-                ligne = fichier.readLine();
-            }
-            while (ligne != null && (ligne = fichier.readLine()) != null) {
+            String ligne;
+            String section = "";
+            int prochainIdentifiantPorte = 0;
+            while ((ligne = fichier.readLine()) != null) {
                 ligne = ligne.trim();
                 if (ligne.isEmpty()) {
                     continue;
                 }
+                if ("INGREDIENTS".equalsIgnoreCase(ligne)
+                        || "MECANISMES".equalsIgnoreCase(ligne)) {
+                    section = ligne.toUpperCase(java.util.Locale.ROOT);
+                    continue;
+                }
                 String[] champs = ligne.split("\\s+");
-                TypeIngredient type = TypeIngredient.valueOf(champs[0]);
-                int colonne = Integer.parseInt(champs[1]);
-                int ligneGrille = Integer.parseInt(champs[2]);
-                int tailleElement = Ingredient.TAILLE_HITBOX;
-                int positionX = colonne * tailleTuile + (tailleTuile - tailleElement) / 2;
-                int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile
-                        + (tailleTuile - tailleElement) / 2;
-                ingredients.add(new Ingredient(type, positionX, positionY));
+                if ("INGREDIENTS".equals(section)) {
+                    TypeIngredient type = TypeIngredient.valueOf(champs[0]);
+                    int colonne = Integer.parseInt(champs[1]);
+                    int ligneGrille = Integer.parseInt(champs[2]);
+                    int tailleElement = Ingredient.TAILLE_HITBOX;
+                    int positionX = colonne * tailleTuile + (tailleTuile - tailleElement) / 2;
+                    int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile
+                            + (tailleTuile - tailleElement) / 2;
+                    ingredients.add(new Ingredient(type, positionX, positionY));
+                } else if ("MECANISMES".equals(section)) {
+                    int identifiant = Integer.parseInt(champs[1]);
+                    int colonne = Integer.parseInt(champs[2]);
+                    int ligneGrille = Integer.parseInt(champs[3]);
+                    int positionX = colonne * tailleTuile;
+                    int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
+                    if ("LEVIER".equalsIgnoreCase(champs[0])) {
+                        leviers.add(new Levier(this, identifiant, positionX, positionY));
+                    } else if ("PORTE".equalsIgnoreCase(champs[0])) {
+                        int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
+                        int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
+                        boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
+                        blocsPorte.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
+                                positionX, positionY, largeurPorte, hauteurPorte, fermee));
+                    }
+                }
             }
             fichier.close();
 
@@ -97,6 +120,73 @@ public class Map {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les leviers définis dans le niveau.
+     * ________________________________________________________________ */
+    public List<Levier> getLeviers() {
+        return Collections.unmodifiableList(leviers);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les blocs de porte définis dans le niveau.
+     * ________________________________________________________________ */
+    public List<BlocPorte> getBlocsPorte() {
+        return Collections.unmodifiableList(blocsPorte);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Met à jour chaque porte selon le levier et son état initial.
+     * [INFO] Seule l’occupation de la même porte retarde sa fermeture.
+     * ________________________________________________________________ */
+    public void mettreAJourMecanismes(List<Entite> entites) {
+        for (BlocPorte bloc : blocsPorte) {
+            boolean actif = false;
+            for (Levier levier : leviers) {
+                if (levier.getIdMecanisme() == bloc.getIdMecanisme()) {
+                    actif = levier.isActive();
+                    break;
+                }
+            }
+            bloc.definirFermetureDemandee(bloc.isFermeeInitialement() != actif);
+        }
+        for (BlocPorte bloc : blocsPorte) {
+            if (!bloc.estFermetureDemandee()) {
+                bloc.definirFerme(false);
+                continue;
+            }
+            boolean porteOccupee = false;
+            for (BlocPorte candidat : blocsPorte) {
+                if (candidat.getIdPorte() != bloc.getIdPorte()) {
+                    continue;
+                }
+                for (Entite entite : entites) {
+                    if ((entite instanceof Joueur || entite instanceof Monstre)
+                            && entite != candidat && candidat.enCollisionAvec(entite)) {
+                        porteOccupee = true;
+                        break;
+                    }
+                }
+                if (porteOccupee) {
+                    break;
+                }
+            }
+            for (BlocPorte candidat : blocsPorte) {
+                if (candidat.getIdPorte() == bloc.getIdPorte()) {
+                    candidat.definirFerme(!porteOccupee);
+                }
+            }
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Dessine la tuile demandée du tileset.
+     * ________________________________________________________________ */
+    public void dessinerTuile(Graphics2D contexte, int numero, int x, int y, int largeurTuile, int hauteurTuile) {
+        if (tuiles != null && numero >= 0 && numero < tuiles.length) {
+            contexte.drawImage(tuiles[numero], x, y, largeurTuile, hauteurTuile, null);
         }
     }
 
@@ -194,6 +284,10 @@ public class Map {
      * ACTION : Actualise la map à chaque tour de boucle.
      * [INFO] Vide pour l'instant, le décor est statique.
      * ________________________________________________________________ */
+    /* ________________________________________________________________
+     * ACTION : Actualise la map à chaque tour de boucle.
+     * [INFO] Le décor reste statique.
+     * ________________________________________________________________ */
     public void miseAJour() {
 
     }
@@ -264,7 +358,11 @@ public class Map {
             }
         }
 
-        // Aucune tuile solide sous la hitbox, donc pas de collision
+        for (BlocPorte bloc : blocsPorte) {
+            if (bloc.isCollisionJoueur() && bloc.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
+                return true;
+            }
+        }
         return false;
     }
 }

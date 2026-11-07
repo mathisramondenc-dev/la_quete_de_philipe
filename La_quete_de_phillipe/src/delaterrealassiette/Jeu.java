@@ -43,6 +43,8 @@ public class Jeu {
         joueur.definirPosition(DEPART_X, DEPART_Y);
         entites = new ArrayList<>();
         entites.add(joueur);
+        entites.addAll(carte.getLeviers());
+        entites.addAll(carte.getBlocsPorte());
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
     }
@@ -63,19 +65,28 @@ public class Jeu {
         miseAJour(new boolean[9]);
     }
 
+    /* ________________________________________________________________
+     * ACTION : Met à jour le joueur, les mécanismes, les entités et la recette.
+     * ________________________________________________________________ */
     public void miseAJour(boolean[] etatBoutons) {
         if (victoire) {
             return;
         }
         joueur.miseAJourIntentions(etatBoutons);
+        if (joueur.consommerActivationLevier()) {
+            for (Levier levier : carte.getLeviers()) {
+                if (levier.estAProximite(joueur)) {
+                    levier.basculer();
+                    break;
+                }
+            }
+        }
+        carte.mettreAJourMecanismes(entites);
         carte.miseAJour();
         for (Entite entite : entites) {
             entite.mettreAJour();
         }
-        if (estTombeSousLaCarte(joueur)) {
-            joueur.modifierPointsDeVie(-joueur.getPointsDeVie());
-        }
-        if (joueur.estMort()) {
+        if (estTombeDansLeVide()) {
             reset();
             return;
         }
@@ -98,12 +109,12 @@ public class Jeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Indique si le joueur est entièrement sous la carte.
-     * [INFO] L'origine est en bas à gauche et la chute est sous y = 0.
-     * [DEPENDANCE] Utilise la position et la hitbox de l'entité vérifiée.
+     * ACTION : Indique si le joueur est entièrement passé sous la carte.
+     * [INFO] y = 0 correspond au bas du décor, le vide est donc en y négatif.
      * ________________________________________________________________ */
-    private boolean estTombeSousLaCarte(Joueur joueurAVerifier) {
-        return joueurAVerifier.getPositionY() + joueurAVerifier.getHitbox()[1] < 0;
+    private boolean estTombeDansLeVide() {
+        int hauteurHitbox = joueur.getHitbox()[1];
+        return joueur.getPositionY() + hauteurHitbox < 0;
     }
 
     /* ________________________________________________________________
@@ -152,6 +163,13 @@ public class Jeu {
             int yEntite = carte.getHauteurPixels() - entite.getPositionY() - hitbox[1];
             entite.dessiner(contexte, xEntite, yEntite);
         }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne la carte du niveau actif.
+     * ________________________________________________________________ */
+    public Map getCarte() {
+        return carte;
     }
 
     /* ________________________________________________________________

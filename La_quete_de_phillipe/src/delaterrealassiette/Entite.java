@@ -23,6 +23,7 @@ public abstract class Entite {
     private BufferedImage image;
     private String cheminImageCharge;
     private boolean regardeVersLaGauche;
+    protected boolean collisionJoueur = false;
 
     /* ________________________________________________________________
      * ACTION : Initialise la position et la map de l'entité.
@@ -118,6 +119,20 @@ public abstract class Entite {
     public void definirPosition(int positionX, int positionY) {
         this.positionX = positionX;
         this.positionY = positionY;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Définit si cette entité est solide pour les joueurs et les monstres.
+     * ________________________________________________________________ */
+    public void definirCollisionJoueur(boolean collisionJoueur) {
+        this.collisionJoueur = collisionJoueur;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si cette entité est solide pour les joueurs et les monstres.
+     * ________________________________________________________________ */
+    public boolean isCollisionJoueur() {
+        return collisionJoueur;
     }
 
     /* ________________________________________________________________
@@ -224,10 +239,16 @@ public abstract class Entite {
      * ________________________________________________________________ */
     public abstract void mettreAJour();
 
+    /* ________________________________________________________________
+     * ACTION : Définit la position sur l'axe x.
+     * ________________________________________________________________ */
     public void setPositionX(int positionX) {
         this.positionX = positionX;
     }
 
+    /* ________________________________________________________________
+     * ACTION : Définit la position sur l'axe y.
+     * ________________________________________________________________ */
     public void setPositionY(int positionY) {
         this.positionY = positionY;
     }
