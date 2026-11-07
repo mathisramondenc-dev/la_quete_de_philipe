@@ -25,7 +25,7 @@ import javax.swing.JTextField;
 public class FenetreConnexion extends Fenetre {
 
     // Niveau utilisé tant que la BDD ne donne pas celui de la partie
-    private static final String NIVEAU_PAR_DEFAUT = "niveau1.txt";
+    private static final String NIVEAU_PAR_DEFAUT = "niveau3.txt";
 
     private final JTextField champPseudo;
     private final JTextField champIdentifiant;

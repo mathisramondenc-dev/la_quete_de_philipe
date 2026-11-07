@@ -53,6 +53,7 @@ public class FenetreMenu extends Fenetre {
         tests.add(creerTexte("Test :", 14, false), placementTest);
         tests.add(creerBouton("Niveau 1", 120, 35, 14, e -> lancerPartie(new Jeu("niveau1.txt"))), placementTest);
         tests.add(creerBouton("Niveau 2", 120, 35, 14, e -> lancerPartie(new Jeu("niveau2.txt"))), placementTest);
+        tests.add(creerBouton("Niveau 3", 120, 35, 14, e -> lancerPartie(new Jeu("niveau3.txt"))), placementTest);
         tests.add(creerBouton("Debug", 120, 35, 14, e -> lancerPartie(null)), placementTest);
 
         placement.gridy = 1;

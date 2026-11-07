@@ -16,6 +16,8 @@ public class Jeu {
     private Joueur joueur;
     private List<Entite> entites;
     private GestionBDD gestionBDD;
+    private List<Ingredient> ingredients;
+    private InventaireRecette inventaireRecette;
 
     /* ________________________________________________________________
      * ACTION : Charge le niveau et place le joueur à son point de départ.
@@ -32,6 +34,8 @@ public class Jeu {
         entites = new ArrayList<>();
         entites.add(joueur);
         entites.add(joueur2);
+        ingredients = new ArrayList<>(carte.getIngredients());
+        inventaireRecette = new InventaireRecette(ingredients);
     }
 
     /* ________________________________________________________________
@@ -43,6 +47,18 @@ public class Jeu {
         carte.miseAJour();
         for (Entite entite : entites) {
             entite.mettreAJour();
+        }
+        for (Ingredient ingredient : ingredients) {
+            if (!ingredient.isActif()) {
+                continue;
+            }
+            for (Entite entite : entites) {
+                if (entite instanceof Joueur && ingredient.enCollisionAvec(entite)) {
+                    ingredient.interagir((Joueur) entite);
+                    inventaireRecette.ajouter(ingredient.getTypeIngredient());
+                    break;
+                }
+            }
         }
     }
 
@@ -59,6 +75,36 @@ public class Jeu {
             int yEntite = carte.getHauteurPixels()
                     - entite.getPositionY() - hitbox[1];
             entite.dessiner(contexte, xEntite, yEntite);
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les ingrédients présents dans le niveau.
+     * ________________________________________________________________ */
+    public List<Ingredient> getIngredients() { return java.util.Collections.unmodifiableList(ingredients); }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne l'inventaire de recette partagé par la partie.
+     * ________________________________________________________________ */
+    public InventaireRecette getInventaireRecette() { return inventaireRecette; }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne la hauteur du monde en pixels.
+     * ________________________________________________________________ */
+    public int getHauteurCartePixels() { return carte.getHauteurPixels(); }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne le joueur contrôlé.
+     * ________________________________________________________________ */
+    public Joueur getJoueur() { return joueur; }
+
+    /* ________________________________________________________________
+     * ACTION : Dessine les ingrédients actifs par-dessus le décor et les entités.
+     * ________________________________________________________________ */
+    public void dessinerIngredients(Graphics2D contexte) {
+        for (Ingredient ingredient : ingredients) {
+            int yEcran = carte.getHauteurPixels() - ingredient.getPositionY() - ingredient.getHitbox()[1];
+            ingredient.dessiner(contexte, ingredient.getPositionX(), yEcran);
         }
     }
 }

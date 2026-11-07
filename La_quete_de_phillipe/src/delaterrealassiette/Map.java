@@ -7,6 +7,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import javax.imageio.ImageIO;
 
 /* ________________________________________________________________
@@ -31,6 +34,7 @@ public class Map {
     private int[][] decor;
 
     private boolean modifie;
+    private final List<Ingredient> ingredients = new ArrayList<>();
 
     /* ________________________________________________________________
      * ACTION : Construit la map à partir d'un fichier texte FruitEditor.
@@ -56,22 +60,51 @@ public class Map {
             // Une ligne du fichier = une ligne du décor
             decor = new int[hauteur][largeur];
             int i = 0;
-            while (fichier.ready() && i < hauteur) {
+            while (i < hauteur) {
                 String ligne = fichier.readLine();
-                String[] champs = ligne.split(" ");
+                String[] champs = ligne.trim().split("\\s+");
                 for (int j = 0; j < largeur; j++) {
                     decor[i][j] = Integer.parseInt(champs[j]);
                 }
                 i++;
             }
-
+            String ligne = fichier.readLine();
+            while (ligne != null && !"INGREDIENTS".equalsIgnoreCase(ligne.trim())) {
+                ligne = fichier.readLine();
+            }
+            while (ligne != null && (ligne = fichier.readLine()) != null) {
+                ligne = ligne.trim();
+                if (ligne.isEmpty()) {
+                    continue;
+                }
+                String[] champs = ligne.split("\\s+");
+                TypeIngredient type = TypeIngredient.valueOf(champs[0]);
+                int colonne = Integer.parseInt(champs[1]);
+                int ligneGrille = Integer.parseInt(champs[2]);
+                int tailleElement = Ingredient.TAILLE_HITBOX;
+                int positionX = colonne * tailleTuile + (tailleTuile - tailleElement) / 2;
+                int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile
+                        + (tailleTuile - tailleElement) / 2;
+                ingredients.add(new Ingredient(type, positionX, positionY));
+            }
             fichier.close();
 
-            BufferedImage tileset = ImageIO.read(new File(cheminTileset));
-            decouperTileset(tileset);
+            if (new File(cheminTileset).isFile()) {
+                BufferedImage tileset = ImageIO.read(new File(cheminTileset));
+                if (tileset != null) {
+                    decouperTileset(tileset);
+                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les ingrédients déclarés à la suite de la grille.
+     * ________________________________________________________________ */
+    public List<Ingredient> getIngredients() {
+        return Collections.unmodifiableList(ingredients);
     }
 
     /* ________________________________________________________________
@@ -170,6 +203,9 @@ public class Map {
      * ________________________________________________________________ */
     public void rendu(Graphics2D contexte) {
         // i parcourt les lignes, j parcourt les colonnes
+        if (tuiles == null) {
+            return;
+        }
         for (int i = 0; i < hauteur; i++) {
             for (int j = 0; j < largeur; j++) {
                 contexte.drawImage(tuiles[decor[i][j]], j * tailleTuile, i * tailleTuile, null);

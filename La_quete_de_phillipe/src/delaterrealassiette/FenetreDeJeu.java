@@ -164,6 +164,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         if (jeu != null) {
             jeu.miseAJour(etatBoutons);
             jeu.rendu(contexte);
+            jeu.dessinerIngredients(contexte);
+            jeu.getInventaireRecette().dessiner(contexte, LARGEUR_JEU);
         } else {
             renduDebug(clic);
             reglerProchainTicDebug();

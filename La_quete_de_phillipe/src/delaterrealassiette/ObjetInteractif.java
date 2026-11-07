@@ -1,13 +1,16 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package delaterrealassiette;
 
-/**
- *
- * @author Antoine
- */
-public class ObjetInteractif {
-    
+/* ________________________________________________________________
+ * ACTION : Représente un élément du décor avec lequel un joueur agit.
+ * [DEPENDANCE] Ingredient spécialise cette classe pour le ramassage.
+ * ________________________________________________________________ */
+public abstract class ObjetInteractif extends ElementDeJeu {
+    protected ObjetInteractif(int positionX, int positionY) {
+        super(positionX, positionY);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Applique l'interaction du joueur avec cet objet.
+     * ________________________________________________________________ */
+    public abstract void interagir(Joueur joueur);
 }
