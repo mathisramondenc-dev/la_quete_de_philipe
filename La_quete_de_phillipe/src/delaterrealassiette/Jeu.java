@@ -11,7 +11,7 @@ import java.util.List;
  * ________________________________________________________________ */
 public class Jeu {
     private static final int DEPART_X = 32;
-    private static final int DEPART_Y = 32;
+    private static final int DEPART_Y = 64;
 
     private String fichierNiveau;
     private int numeroNiveau;
@@ -45,6 +45,7 @@ public class Jeu {
         entites.add(joueur);
         entites.addAll(carte.getLeviers());
         entites.addAll(carte.getBlocsPorte());
+        entites.addAll(carte.getBlocsMortels());
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
     }
@@ -86,7 +87,10 @@ public class Jeu {
         for (Entite entite : entites) {
             entite.mettreAJour();
         }
-        if (estTombeDansLeVide()) {
+        if (estTombeDansLeVide() || estEnContactAvecBlocMortel()) {
+            joueur.modifierPointsDeVie(-joueur.getPointsDeVie());
+        }
+        if (joueur.estMort()) {
             reset();
             return;
         }
@@ -115,6 +119,18 @@ public class Jeu {
     private boolean estTombeDansLeVide() {
         int hauteurHitbox = joueur.getHitbox()[1];
         return joueur.getPositionY() + hauteurHitbox < 0;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si le joueur touche un bloc mortel.
+     * ________________________________________________________________ */
+    private boolean estEnContactAvecBlocMortel() {
+        for (BlocMortel blocMortel : carte.getBlocsMortels()) {
+            if (blocMortel.enCollisionAvec(joueur)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /* ________________________________________________________________

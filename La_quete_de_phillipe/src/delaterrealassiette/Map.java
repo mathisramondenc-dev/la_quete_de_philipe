@@ -37,6 +37,7 @@ public class Map {
     private final List<Ingredient> ingredients = new ArrayList<>();
     private final List<Levier> leviers = new ArrayList<>();
     private final List<BlocPorte> blocsPorte = new ArrayList<>();
+    private final List<BlocMortel> blocsMortels = new ArrayList<>();
 
     /* ________________________________________________________________
      * ACTION : Construit la map à partir d'un fichier texte FruitEditor.
@@ -94,19 +95,32 @@ public class Map {
                             + (tailleTuile - tailleElement) / 2;
                     ingredients.add(new Ingredient(type, positionX, positionY));
                 } else if ("MECANISMES".equals(section)) {
-                    int identifiant = Integer.parseInt(champs[1]);
-                    int colonne = Integer.parseInt(champs[2]);
-                    int ligneGrille = Integer.parseInt(champs[3]);
-                    int positionX = colonne * tailleTuile;
-                    int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
-                    if ("LEVIER".equalsIgnoreCase(champs[0])) {
-                        leviers.add(new Levier(this, identifiant, positionX, positionY));
-                    } else if ("PORTE".equalsIgnoreCase(champs[0])) {
-                        int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
-                        int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
-                        boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
-                        blocsPorte.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
-                                positionX, positionY, largeurPorte, hauteurPorte, fermee));
+                    if ("MORTEL".equalsIgnoreCase(champs[0])) {
+                        int colonne = Integer.parseInt(champs[1]);
+                        int ligneGrille = Integer.parseInt(champs[2]);
+                        int largeurMortelle = champs.length > 3
+                                ? Integer.parseInt(champs[3]) : 1;
+                        int hauteurMortelle = champs.length > 4
+                                ? Integer.parseInt(champs[4]) : 1;
+                        int positionX = colonne * tailleTuile;
+                        int positionY = getHauteurPixels() - (ligneGrille + hauteurMortelle) * tailleTuile;
+                        blocsMortels.add(new BlocMortel(this, positionX, positionY,
+                                largeurMortelle * tailleTuile, hauteurMortelle * tailleTuile));
+                    } else {
+                        int identifiant = Integer.parseInt(champs[1]);
+                        int colonne = Integer.parseInt(champs[2]);
+                        int ligneGrille = Integer.parseInt(champs[3]);
+                        int positionX = colonne * tailleTuile;
+                        int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
+                        if ("LEVIER".equalsIgnoreCase(champs[0])) {
+                            leviers.add(new Levier(this, identifiant, positionX, positionY));
+                        } else if ("PORTE".equalsIgnoreCase(champs[0])) {
+                            int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
+                            int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
+                            boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
+                            blocsPorte.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
+                                    positionX, positionY, largeurPorte, hauteurPorte, fermee));
+                        }
                     }
                 }
             }
@@ -135,6 +149,13 @@ public class Map {
      * ________________________________________________________________ */
     public List<BlocPorte> getBlocsPorte() {
         return Collections.unmodifiableList(blocsPorte);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les blocs mortels définis dans le niveau.
+     * ________________________________________________________________ */
+    public List<BlocMortel> getBlocsMortels() {
+        return Collections.unmodifiableList(blocsMortels);
     }
 
     /* ________________________________________________________________

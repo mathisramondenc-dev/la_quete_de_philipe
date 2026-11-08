@@ -64,15 +64,33 @@ public class Joueur extends Entite {
      * ________________________________________________________________ */
     public Joueur(Map nouvelleCarte, Joueur joueurPrecedent) {
         this(nouvelleCarte, joueurPrecedent.pseudo);
-        changerChef(joueurPrecedent.avatarActuel);
+        avatarActuel = joueurPrecedent.avatarActuel;
+        chargerImage(avatarActuel.getCheminImage());
         pointsDeVie = joueurPrecedent.pointsDeVie;
         score = joueurPrecedent.score;
     }
 
     /* ________________________________________________________________
-     * ACTION : Change l'avatar contrôlé.
+     * ACTION : Change l'avatar contrôlé si sa hitbox peut tenir sur la carte.
+     * [INFO] Les pieds restent à la même hauteur et la hitbox reste centrée.
+     * [DEPENDANCE] Map vérifie les tuiles solides et les portes fermées.
      * ________________________________________________________________ */
     public void changerChef(Avatar nouvelAvatar) {
+        if (avatarActuel == nouvelAvatar) {
+            return;
+        }
+
+        int[] hitboxActuelle = avatarActuel.getHitbox();
+        int[] nouvelleHitbox = nouvelAvatar.getHitbox();
+        int nouvellePositionX = positionX
+                + (hitboxActuelle[0] - nouvelleHitbox[0]) / 2;
+
+        if (map.collisionHitbox(nouvellePositionX, positionY,
+                nouvelleHitbox[0], nouvelleHitbox[1])) {
+            return;
+        }
+
+        positionX = nouvellePositionX;
         avatarActuel = nouvelAvatar;
         chargerImage(avatarActuel.getCheminImage());
     }

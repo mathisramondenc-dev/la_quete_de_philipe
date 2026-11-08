@@ -2,7 +2,7 @@ package delaterrealassiette;
 
 /* ________________________________________________________________
  * ACTION : Représente un ingrédient récupérable dans le niveau.
- * [DEPENDANCE] Jeu détecte le chevauchement et ajoute le type à la recette.
+ * [DEPENDANCE] Jeu détecte le chevauchement et ajoute le type à l’inventaire des ingrédients.
  * ________________________________________________________________ */
 public class Ingredient extends ObjetInteractif {
     public static final int TAILLE_HITBOX = 24;
