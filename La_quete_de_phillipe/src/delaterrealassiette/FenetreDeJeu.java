@@ -1,23 +1,29 @@
-// FenetreDeJeu.java
 package delaterrealassiette;
 
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
+import javax.swing.AbstractAction;
+import javax.swing.JPanel;
+import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
 /* ________________________________________________________________
  * ACTION : Fenêtre de la partie. Lance la boucle de jeu (un tic toutes
  *          les DUREE_TIC ms), lit le clavier et la souris et dessine.
- * [INFO] Même principe que le FenetreDeJeu du prof : un framebuffer
- *        affiché dans un JLabel et un Timer qui appelle actionPerformed.
+ * [INFO] L'image logique 1920x1056 est mise à l'échelle dans le panneau
  * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons
  *        et tourne à IMAGES_PAR_SECONDE_DEBUG images par seconde.
  * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
@@ -44,18 +50,21 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
 
     private final Jeu jeu; // null en mode debug
     private final InfosPartie infosPartie; // null hors multijoueur
-    private final JLabel ecran;
+    private final JPanel ecran;
     private final BufferedImage framebuffer;
     private final Graphics2D contexte;
     private final ClavierSouris clavierSouris;
     private final Timer timer;
+    private boolean pleinEcran;
+    private Rectangle limitesFenetreAvantPleinEcran;
+    private int etatFenetreAvantPleinEcran;
 
     private boolean[] etatBoutons = new boolean[ClavierSouris.NB_BOUTONS];
     private long numeroTic = 0;
 
     // Mesure des images par seconde (affichée en mode debug)
-    private long debutBoucle;           // ms, instant du démarrage
-    private long debutSeconde;          // ms, début de la seconde en cours
+    private long debutBoucle;
+    private long debutSeconde;
     private int imagesDansLaSeconde = 0;
     private int imagesParSecondeMesurees = 0;
 
@@ -75,7 +84,6 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ________________________________________________________________ */
     public FenetreDeJeu(Jeu jeu, InfosPartie infosPartie) {
         super();
-        // Sans Jeu, la fenêtre reste sur l'écran de debug
         this.jeu = jeu;
         this.infosPartie = infosPartie;
         if (infosPartie != null) {
@@ -83,25 +91,150 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                     + " - partie " + infosPartie.getIdentifiantPartie());
         }
 
-        ecran = new JLabel();
+        // Panneau d'affichage mis à l'échelle
+        ecran = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics graphismes) {
+                super.paintComponent(graphismes);
+                Graphics2D graphismesDeuxD = (Graphics2D) graphismes.create();
+                graphismesDeuxD.setColor(Color.BLACK);
+                graphismesDeuxD.fillRect(0, 0, getWidth(), getHeight());
+                graphismesDeuxD.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                        RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                Rectangle zoneAffichage = calculerZoneAffichage();
+                graphismesDeuxD.drawImage(framebuffer, zoneAffichage.x, zoneAffichage.y,
+                        zoneAffichage.width, zoneAffichage.height, null);
+                graphismesDeuxD.dispose();
+            }
+        };
+        ecran.setOpaque(true);
+        ecran.setBackground(Color.BLACK);
         ecran.setPreferredSize(new Dimension(LARGEUR_JEU, HAUTEUR_JEU));
         setContentPane(ecran);
 
         framebuffer = new BufferedImage(LARGEUR_JEU, HAUTEUR_JEU, BufferedImage.TYPE_INT_ARGB);
-        ecran.setIcon(new ImageIcon(framebuffer));
         contexte = framebuffer.createGraphics();
         contexte.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
+        // Entrées clavier et souris
         clavierSouris = new ClavierSouris();
-        addKeyListener(clavierSouris);            // clavier : sur la fenêtre
-        ecran.addMouseListener(clavierSouris);    // souris : sur l'écran, pour avoir
-        ecran.addMouseMotionListener(clavierSouris); // des coordonnées dans l'image
+        addKeyListener(clavierSouris);
+        ConvertisseurSouris convertisseurSouris = new ConvertisseurSouris();
+        ecran.addMouseListener(convertisseurSouris);
+        ecran.addMouseMotionListener(convertisseurSouris);
+
+        // Raccourci plein écran
+        ecran.getInputMap(JPanel.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0), "basculerPleinEcran");
+        ecran.getActionMap().put("basculerPleinEcran", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent evenement) {
+                basculerPleinEcran();
+            }
+        });
 
         timer = new Timer(DUREE_TIC, this);
-        finaliserFenetre();
+        setResizable(true);
         pack();
         setLocationRelativeTo(null);
+        setExtendedState(getExtendedState() | MAXIMIZED_BOTH);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Calcule la zone de rendu centrée en conservant le ratio logique.
+     * ________________________________________________________________ */
+    private Rectangle calculerZoneAffichage() {
+        int largeurEcran = ecran.getWidth();
+        int hauteurEcran = ecran.getHeight();
+        double facteur = Math.min((double) largeurEcran / LARGEUR_JEU,
+                (double) hauteurEcran / HAUTEUR_JEU);
+        int largeurAffichage = (int) Math.round(LARGEUR_JEU * facteur);
+        int hauteurAffichage = (int) Math.round(HAUTEUR_JEU * facteur);
+        return new Rectangle((largeurEcran - largeurAffichage) / 2,
+                (hauteurEcran - hauteurAffichage) / 2,
+                largeurAffichage, hauteurAffichage);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Bascule entre la fenêtre maximisée et le plein écran sans bordure.
+     * ________________________________________________________________ */
+    private void basculerPleinEcran() {
+        GraphicsDevice appareilAffichage = GraphicsEnvironment
+                .getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        if (!pleinEcran) {
+            limitesFenetreAvantPleinEcran = getBounds();
+            etatFenetreAvantPleinEcran = getExtendedState();
+            dispose();
+            setUndecorated(true);
+            appareilAffichage.setFullScreenWindow(this);
+            setVisible(true);
+            pleinEcran = true;
+        } else {
+            appareilAffichage.setFullScreenWindow(null);
+            dispose();
+            setUndecorated(false);
+            setBounds(limitesFenetreAvantPleinEcran);
+            setExtendedState(etatFenetreAvantPleinEcran);
+            setVisible(true);
+            pleinEcran = false;
+        }
+        ecran.requestFocusInWindow();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Convertit les coordonnées souris vers l'espace logique puis
+     *          transmet l'événement à ClavierSouris.
+     * [DEPENDANCE] ClavierSouris (reste inchangé)
+     * ________________________________________________________________ */
+    private class ConvertisseurSouris extends MouseAdapter {
+
+        private MouseEvent convertirEvenementSouris(MouseEvent evenement) {
+            Rectangle zoneAffichage = calculerZoneAffichage();
+            int positionX = (int) ((evenement.getX() - zoneAffichage.x)
+                    * (double) LARGEUR_JEU / zoneAffichage.width);
+            int positionY = (int) ((evenement.getY() - zoneAffichage.y)
+                    * (double) HAUTEUR_JEU / zoneAffichage.height);
+            return new MouseEvent(ecran, evenement.getID(), evenement.getWhen(),
+                    evenement.getModifiersEx(), positionX, positionY,
+                    evenement.getClickCount(), evenement.isPopupTrigger(),
+                    evenement.getButton());
+        }
+
+        @Override
+        public void mousePressed(MouseEvent evenement) {
+            clavierSouris.mousePressed(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent evenement) {
+            clavierSouris.mouseReleased(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent evenement) {
+            clavierSouris.mouseClicked(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseEntered(MouseEvent evenement) {
+            clavierSouris.mouseEntered(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseExited(MouseEvent evenement) {
+            clavierSouris.mouseExited(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseMoved(MouseEvent evenement) {
+            clavierSouris.mouseMoved(convertirEvenementSouris(evenement));
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent evenement) {
+            clavierSouris.mouseDragged(convertirEvenementSouris(evenement));
+        }
     }
 
     /* ________________________________________________________________
@@ -121,9 +254,6 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     /* ________________________________________________________________
      * ACTION : En mode debug, règle le délai avant le prochain tic pour
      *          avoir exactement IMAGES_PAR_SECONDE_DEBUG images par seconde.
-     * [INFO] 1000 / 24 = 41,67 ms n'est pas un nombre entier : on vise
-     *        l'instant exact de la prochaine image (41 ou 42 ms selon le
-     *        tic), sinon on obtiendrait 24,4 ou 23,8 images par seconde.
      * ________________________________________________________________ */
     private void reglerProchainTicDebug() {
         long prochaineImage = debutBoucle + (numeroTic + 1) * 1000 / IMAGES_PAR_SECONDE_DEBUG;
@@ -158,7 +288,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent evenement) {
         numeroTic++;
-        boolean clic = clavierSouris.isClicSouris(); // avant getEtatBoutons()
+        boolean clic = clavierSouris.isClicSouris();
         etatBoutons = clavierSouris.getEtatBoutons();
 
         if (jeu != null) {
@@ -186,7 +316,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     }
 
     /* ________________________________________________________________
-     * ACTION : Affiche l’écran de victoire final.
+     * ACTION : Affiche l'écran de victoire final.
      * ________________________________________________________________ */
     private void dessinerVictoire() {
         contexte.setColor(new Color(18, 20, 28));
@@ -194,10 +324,10 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         contexte.setColor(new Color(255, 220, 95));
         contexte.setFont(new Font("SansSerif", Font.BOLD, 104));
         String texte = "BRAVO !";
-        int x = (LARGEUR_JEU - contexte.getFontMetrics().stringWidth(texte)) / 2;
-        int y = (HAUTEUR_JEU - contexte.getFontMetrics().getHeight()) / 2
+        int positionX = (LARGEUR_JEU - contexte.getFontMetrics().stringWidth(texte)) / 2;
+        int positionY = (HAUTEUR_JEU - contexte.getFontMetrics().getHeight()) / 2
                 + contexte.getFontMetrics().getAscent();
-        contexte.drawString(texte, x, y);
+        contexte.drawString(texte, positionX, positionY);
     }
 
     /* ________________________________________________________________
@@ -205,16 +335,16 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      *          à gauche, par-dessus le jeu.
      * ________________________________________________________________ */
     private void renduInfosPartie() {
-        String ligne1 = infosPartie.getPseudo();
-        String ligne2 = "Partie " + infosPartie.getIdentifiantPartie();
+        String lignePseudo = infosPartie.getPseudo();
+        String lignePartie = "Partie " + infosPartie.getIdentifiantPartie();
 
-        contexte.setColor(new Color(0, 0, 0, 150)); // noir transparent
+        contexte.setColor(new Color(0, 0, 0, 150));
         contexte.fillRoundRect(6, 6, 190, 44, 10, 10);
         contexte.setColor(Color.WHITE);
         contexte.setFont(new Font("SansSerif", Font.BOLD, 14));
-        contexte.drawString(ligne1, 14, 24);
+        contexte.drawString(lignePseudo, 14, 24);
         contexte.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        contexte.drawString(ligne2, 14, 42);
+        contexte.drawString(lignePartie, 14, 42);
     }
 
     /* ________________________________________________________________
@@ -240,12 +370,13 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                 + clavierSouris.getSourisY() + ")" + (clic ? "  CLIC" : ""), 520, 30);
 
         contexte.setFont(new Font("Monospaced", Font.PLAIN, 16));
-        for (int i = 0; i < ClavierSouris.NB_BOUTONS; i++) {
-            int y = 70 + i * 26;
-            contexte.setColor(etatBoutons[i] ? new Color(0, 130, 0) : new Color(60, 60, 60));
-            contexte.fillOval(20, y - 13, 14, 14);
+        for (int indice = 0; indice < ClavierSouris.NB_BOUTONS; indice++) {
+            int positionY = 70 + indice * 26;
+            contexte.setColor(etatBoutons[indice] ? new Color(0, 130, 0) : new Color(60, 60, 60));
+            contexte.fillOval(20, positionY - 13, 14, 14);
             contexte.setColor(Color.BLACK);
-            contexte.drawString("[" + i + "] " + NOMS_BOUTONS[i] + " = " + etatBoutons[i], 45, y);
+            contexte.drawString("[" + indice + "] " + NOMS_BOUTONS[indice]
+                    + " = " + etatBoutons[indice], 45, positionY);
         }
     }
 }
