@@ -17,11 +17,11 @@ public class Avatar {
      * [INFO] La hitbox contient la largeur puis la hauteur.
      * ________________________________________________________________ */
     public Avatar(String nom, int vitesseDeplacementX,
-            int forceSaut, int[] hitbox, String cheminImage) {
+            int forceSaut, int[] dimensionsHitbox, String cheminImage) {
         this.nom = nom;
         this.vitesseDeplacementX = vitesseDeplacementX;
         this.forceSaut = forceSaut;
-        this.hitbox = hitbox;
+        this.hitbox = dimensionsHitbox;
         this.cheminImage = cheminImage;
     }
 

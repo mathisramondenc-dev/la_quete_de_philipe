@@ -8,7 +8,6 @@ import java.awt.Graphics2D;
 public class BlocPorte extends Entite {
     private final int idMecanisme;
     private final int idPorte;
-    private final int[] hitbox;
     private final boolean fermeeInitialement;
     private boolean fermee;
     private boolean fermetureDemandee;
@@ -106,18 +105,26 @@ public class BlocPorte extends Entite {
     @Override public void mettreAJour() { }
 
     /* ________________________________________________________________
-     * ACTION : Dessine les tuiles pleines de la porte lorsqu'elle est fermée.
+     * ACTION : Affiche la porte uniquement lorsqu'elle est fermée.
      * ________________________________________________________________ */
-    @Override public void dessiner(Graphics2D contexte, int x, int y) {
-        if (!fermee) {
-            return;
-        }
+    @Override
+    protected boolean estVisible() {
+        return fermee;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Dessine les tuiles pleines de la porte.
+     * [DEPENDANCE] Map fournit la tuile de porte et sa taille.
+     * ________________________________________________________________ */
+    @Override
+    protected void dessinerImageManquante(Graphics2D contexte, int positionEcranX,
+            int positionEcranY, int largeurZone, int hauteurZone) {
         int tailleTuile = map.getTailleTuile();
-        for (int ligne = 0; ligne < hitbox[1]; ligne += tailleTuile) {
-            for (int colonne = 0; colonne < hitbox[0]; colonne += tailleTuile) {
-                map.dessinerTuile(contexte, 5, x + colonne, y + ligne,
-                        Math.min(tailleTuile, hitbox[0] - colonne),
-                        Math.min(tailleTuile, hitbox[1] - ligne));
+        for (int ligne = 0; ligne < hauteurZone; ligne += tailleTuile) {
+            for (int colonne = 0; colonne < largeurZone; colonne += tailleTuile) {
+                map.dessinerTuile(contexte, 5, positionEcranX + colonne, positionEcranY + ligne,
+                        Math.min(tailleTuile, largeurZone - colonne),
+                        Math.min(tailleTuile, hauteurZone - ligne));
             }
         }
     }

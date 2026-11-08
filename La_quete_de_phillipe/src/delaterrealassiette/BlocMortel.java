@@ -2,42 +2,19 @@ package delaterrealassiette;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 
 /* ________________________________________________________________
  * ACTION : Représente une zone traversable qui tue le joueur au contact.
  * ________________________________________________________________ */
 public class BlocMortel extends Entite {
     private static final String cheminImageMortelle = "images/bloc_mortel.png";
-    private static final BufferedImage imageMortelle = chargerImageMortelle();
-    private final int[] hitbox;
-
-    /* ________________________________________________________________
-     * ACTION : Charge le sprite du bloc mortel si le fichier est présent.
-     * ________________________________________________________________ */
-    private static BufferedImage chargerImageMortelle() {
-        File fichier = new File(cheminImageMortelle);
-        File repertoire = new File(System.getProperty("user.dir"));
-        while (!fichier.isFile() && repertoire != null) {
-            fichier = new File(repertoire, cheminImageMortelle);
-            repertoire = repertoire.getParentFile();
-        }
-        try {
-            return fichier.isFile() ? ImageIO.read(fichier) : null;
-        } catch (IOException exception) {
-            return null;
-        }
-    }
 
     /* ________________________________________________________________
      * ACTION : Initialise la position et les dimensions en pixels.
      * ________________________________________________________________ */
     public BlocMortel(Map map, int positionX, int positionY, int largeur, int hauteur) {
         super(map, positionX, positionY);
-        hitbox = new int[]{largeur, hauteur};
+        this.hitbox = new int[]{largeur, hauteur};
     }
 
     /* ________________________________________________________________
@@ -79,16 +56,22 @@ public class BlocMortel extends Entite {
     @Override public void mettreAJour() { }
 
     /* ________________________________________________________________
-     * ACTION : Dessine le sprite ou un rectangle rouge de remplacement.
+     * ACTION : Indique que le sprite remplit la zone par répétition.
      * ________________________________________________________________ */
-    @Override public void dessiner(Graphics2D contexte, int x, int y) {
-        if (imageMortelle != null) {
-            contexte.drawImage(imageMortelle, x, y, hitbox[0], hitbox[1], null);
-            return;
-        }
+    @Override
+    protected boolean estImageRepeteParTuile() {
+        return true;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Remplit la zone en rouge si le sprite est absent.
+     * ________________________________________________________________ */
+    @Override
+    protected void dessinerImageManquante(Graphics2D contexte, int positionEcranX,
+            int positionEcranY, int largeurZone, int hauteurZone) {
         Color couleurPrecedente = contexte.getColor();
         contexte.setColor(new Color(220, 35, 35));
-        contexte.fillRect(x, y, hitbox[0], hitbox[1]);
+        contexte.fillRect(positionEcranX, positionEcranY, largeurZone, hauteurZone);
         contexte.setColor(couleurPrecedente);
     }
 }

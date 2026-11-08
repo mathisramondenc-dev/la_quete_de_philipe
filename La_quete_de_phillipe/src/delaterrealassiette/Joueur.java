@@ -186,9 +186,9 @@ public class Joueur extends Entite {
             definirOrientationGauche(false);
         }
 
-        int[] hitbox = getHitbox();
+        int[] dimensionsHitbox = getHitbox();
         boolean estAuSol = map.collisionHitbox(
-                positionX, positionY - 1, hitbox[0], hitbox[1])
+                positionX, positionY - 1, dimensionsHitbox[0], dimensionsHitbox[1])
                 && vitesseY <= 0;
 
         if (estAuSol) {
