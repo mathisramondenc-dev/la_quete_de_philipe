@@ -43,9 +43,6 @@ public class Jeu {
         joueur.definirPosition(DEPART_X, DEPART_Y);
         entites = new ArrayList<>();
         entites.add(joueur);
-        entites.addAll(carte.getLeviers());
-        entites.addAll(carte.getBlocsPorte());
-        entites.addAll(carte.getBlocsMortels());
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
     }
@@ -100,7 +97,7 @@ public class Jeu {
             }
             for (Entite entite : entites) {
                 if (entite instanceof Joueur
-                        && chevauchement(ingredient, (Joueur) entite)) {
+                        && ingredient.enCollisionAvec(entite)) {
                     ingredient.interagir((Joueur) entite);
                     inventaireRecette.ajouter(ingredient.getTypeIngredient());
                     break;
@@ -142,18 +139,6 @@ public class Jeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Compare les hitbox d’un ingrédient et du joueur.
-     * ________________________________________________________________ */
-    private boolean chevauchement(Ingredient ingredient, Joueur joueur) {
-        int[] hitboxIngredient = ingredient.getHitbox();
-        int[] hitboxJoueur = joueur.getHitbox();
-        return ingredient.getPositionX() < joueur.getPositionX() + hitboxJoueur[0]
-                && ingredient.getPositionX() + hitboxIngredient[0] > joueur.getPositionX()
-                && ingredient.getPositionY() < joueur.getPositionY() + hitboxJoueur[1]
-                && ingredient.getPositionY() + hitboxIngredient[1] > joueur.getPositionY();
-    }
-
-    /* ________________________________________________________________
      * ACTION : Charge le niveau suivant ou verrouille l’état de victoire.
      * [INFO] Le nouvel inventaire est initialisé une seule fois avec la carte.
      * ________________________________________________________________ */
@@ -178,6 +163,11 @@ public class Jeu {
             int xEntite = entite.getPositionX();
             int yEntite = carte.getHauteurPixels() - entite.getPositionY() - hitbox[1];
             entite.dessiner(contexte, xEntite, yEntite);
+        }
+        for (ObjetInteractif objet : carte.getObjetsDecor()) {
+            int[] hitbox = objet.getHitbox();
+            int yEcran = carte.getHauteurPixels() - objet.getPositionY() - hitbox[1];
+            objet.dessiner(contexte, objet.getPositionX(), yEcran);
         }
     }
 

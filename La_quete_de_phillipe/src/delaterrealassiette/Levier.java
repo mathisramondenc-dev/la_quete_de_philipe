@@ -7,7 +7,7 @@ import java.awt.Graphics2D;
 /* ________________________________________________________________
  * ACTION : Représente un levier commandant un mécanisme du niveau.
  * ________________________________________________________________ */
-public class Levier extends Entite {
+public class Levier extends ObjetInteractif {
     private final int idMecanisme;
     private boolean estActive;
     private static final String cheminImageLevier = "images/levier.png";
@@ -18,6 +18,7 @@ public class Levier extends Entite {
     public Levier(Map map, int idMecanisme, int positionX, int positionY) {
         super(map, positionX, positionY);
         this.idMecanisme = idMecanisme;
+        this.cheminImage = cheminImageLevier;
         int tailleTuile = map.getTailleTuile();
         this.hitbox = new int[]{tailleTuile, tailleTuile};
     }
@@ -53,27 +54,6 @@ public class Levier extends Entite {
                 && joueur.getPositionY() - marge < positionY + hitbox[1]
                 && joueur.getPositionY() + hitboxJoueur[1] + marge > positionY;
     }
-
-    /* ________________________________________________________________
-     * ACTION : Retourne une hitbox de levier non solide.
-     * ________________________________________________________________ */
-    @Override public int[] getHitbox() { return hitbox; }
-    /* ________________________________________________________________
-     * ACTION : Retourne la vitesse nulle du levier.
-     * ________________________________________________________________ */
-    @Override public int getVitesse() { return 0; }
-    /* ________________________________________________________________
-     * ACTION : Retourne une impulsion nulle.
-     * ________________________________________________________________ */
-    @Override public int getForceSaut() { return 0; }
-    /* ________________________________________________________________
-     * ACTION : Retourne le chemin du sprite du levier.
-     * ________________________________________________________________ */
-    @Override public String getCheminImage() { return cheminImageLevier; }
-    /* ________________________________________________________________
-     * ACTION : Ne réalise aucun déplacement.
-     * ________________________________________________________________ */
-    @Override public void mettreAJour() { }
 
     /* ________________________________________________________________
      * ACTION : Oriente le sprite selon l'état actif du levier.

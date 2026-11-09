@@ -170,19 +170,43 @@ public abstract class ElementDeJeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Compare les rectangles de collision des deux éléments.
+     * ACTION : Indique si cet élément chevauche un autre élément.
+     * [DEPENDANCE] Les deux éléments fournissent leur position et leur hitbox.
      * ________________________________________________________________ */
     public boolean enCollisionAvec(ElementDeJeu autre) {
         int[] hitboxAutre = autre.getHitbox();
-        int[] dimensionsHitbox = getHitbox();
-        return positionX < autre.positionX + hitboxAutre[0]
-                && positionX + dimensionsHitbox[0] > autre.positionX
-                && positionY < autre.positionY + hitboxAutre[1]
-                && positionY + dimensionsHitbox[1] > autre.positionY;
+        return chevaucheRectangle(autre.getPositionX(), autre.getPositionY(),
+                hitboxAutre[0], hitboxAutre[1]);
     }
 
+    /* ________________________________________________________________
+     * ACTION : Teste le chevauchement de cet élément avec un rectangle.
+     * ________________________________________________________________ */
+    public boolean chevaucheRectangle(int x, int y, int largeur, int hauteur) {
+        int[] dimensionsHitbox = getHitbox();
+        return x < positionX + dimensionsHitbox[0] && x + largeur > positionX
+                && y < positionY + dimensionsHitbox[1] && y + hauteur > positionY;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Définit la position de l’élément.
+     * ________________________________________________________________ */
     public void definirPosition(int positionX, int positionY) {
         this.positionX = positionX;
+        this.positionY = positionY;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Définit la position sur l’axe x.
+     * ________________________________________________________________ */
+    public void setPositionX(int positionX) {
+        this.positionX = positionX;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Définit la position sur l’axe y.
+     * ________________________________________________________________ */
+    public void setPositionY(int positionY) {
         this.positionY = positionY;
     }
 
@@ -213,9 +237,10 @@ public abstract class ElementDeJeu {
     /* ________________________________________________________________
      * ACTION : Retourne la hitbox largeur-hauteur.
      * ________________________________________________________________ */
-    public abstract int[] getHitbox();
+    public int[] getHitbox() { return hitbox; }
+
     /* ________________________________________________________________
      * ACTION : Retourne le chemin du sprite.
      * ________________________________________________________________ */
-    public abstract String getCheminImage();
+    public String getCheminImage() { return cheminImage; }
 }

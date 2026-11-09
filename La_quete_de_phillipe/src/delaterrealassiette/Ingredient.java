@@ -21,16 +21,6 @@ public class Ingredient extends ObjetInteractif {
     public TypeIngredient getTypeIngredient() { return typeIngredient; }
 
     /* ________________________________________________________________
-     * ACTION : Retourne la taille carrée de la hitbox.
-     * ________________________________________________________________ */
-    @Override public int[] getHitbox() { return hitbox; }
-
-    /* ________________________________________________________________
-     * ACTION : Retourne le chemin du sprite de cet ingrédient.
-     * ________________________________________________________________ */
-    @Override public String getCheminImage() { return cheminImage; }
-
-    /* ________________________________________________________________
      * ACTION : Rend inactif l'ingrédient après interaction du joueur.
      * ________________________________________________________________ */
     @Override

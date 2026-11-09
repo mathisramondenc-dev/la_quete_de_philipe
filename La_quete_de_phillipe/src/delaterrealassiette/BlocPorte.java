@@ -5,7 +5,7 @@ import java.awt.Graphics2D;
 /* ________________________________________________________________
  * ACTION : Représente un bloc de porte piloté par un levier.
  * ________________________________________________________________ */
-public class BlocPorte extends Entite {
+public class BlocPorte extends ObjetInteractif {
     private final int idMecanisme;
     private final int idPorte;
     private final boolean fermeeInitialement;
@@ -65,44 +65,6 @@ public class BlocPorte extends Entite {
         this.fermee = fermee;
         definirCollisionJoueur(fermee);
     }
-
-    /* ________________________________________________________________
-     * ACTION : Teste le chevauchement avec une hitbox rectangulaire.
-     * ________________________________________________________________ */
-    public boolean chevaucheRectangle(int x, int y, int largeur, int hauteur) {
-        return x < positionX + hitbox[0] && x + largeur > positionX
-                && y < positionY + hitbox[1] && y + hauteur > positionY;
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Indique si ce bloc chevauche une entité.
-     * ________________________________________________________________ */
-    public boolean enCollisionAvec(Entite entite) {
-        int[] hitboxEntite = entite.getHitbox();
-        return chevaucheRectangle(entite.getPositionX(), entite.getPositionY(),
-                hitboxEntite[0], hitboxEntite[1]);
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Retourne la hitbox rectangulaire du bloc.
-     * ________________________________________________________________ */
-    @Override public int[] getHitbox() { return hitbox; }
-    /* ________________________________________________________________
-     * ACTION : Retourne une vitesse nulle.
-     * ________________________________________________________________ */
-    @Override public int getVitesse() { return 0; }
-    /* ________________________________________________________________
-     * ACTION : Retourne une impulsion nulle.
-     * ________________________________________________________________ */
-    @Override public int getForceSaut() { return 0; }
-    /* ________________________________________________________________
-     * ACTION : Retourne un chemin d'image vide.
-     * ________________________________________________________________ */
-    @Override public String getCheminImage() { return ""; }
-    /* ________________________________________________________________
-     * ACTION : Ne réalise aucun déplacement.
-     * ________________________________________________________________ */
-    @Override public void mettreAJour() { }
 
     /* ________________________________________________________________
      * ACTION : Affiche la porte uniquement lorsqu'elle est fermée.

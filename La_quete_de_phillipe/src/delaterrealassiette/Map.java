@@ -35,9 +35,7 @@ public class Map {
 
     private boolean modifie;
     private final List<Ingredient> ingredients = new ArrayList<>();
-    private final List<Levier> leviers = new ArrayList<>();
-    private final List<BlocPorte> blocsPorte = new ArrayList<>();
-    private final List<BlocMortel> blocsMortels = new ArrayList<>();
+    private final List<ObjetInteractif> objetsDecor = new ArrayList<>();
 
     /* ________________________________________________________________
      * ACTION : Construit la map à partir d'un fichier texte FruitEditor.
@@ -104,7 +102,7 @@ public class Map {
                                 ? Integer.parseInt(champs[4]) : 1;
                         int positionX = colonne * tailleTuile;
                         int positionY = getHauteurPixels() - (ligneGrille + hauteurMortelle) * tailleTuile;
-                        blocsMortels.add(new BlocMortel(this, positionX, positionY,
+                        objetsDecor.add(new BlocMortel(this, positionX, positionY,
                                 largeurMortelle * tailleTuile, hauteurMortelle * tailleTuile));
                     } else {
                         int identifiant = Integer.parseInt(champs[1]);
@@ -113,12 +111,12 @@ public class Map {
                         int positionX = colonne * tailleTuile;
                         int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
                         if ("LEVIER".equalsIgnoreCase(champs[0])) {
-                            leviers.add(new Levier(this, identifiant, positionX, positionY));
+                            objetsDecor.add(new Levier(this, identifiant, positionX, positionY));
                         } else if ("PORTE".equalsIgnoreCase(champs[0])) {
                             int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
                             int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
                             boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
-                            blocsPorte.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
+                            objetsDecor.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
                                     positionX, positionY, largeurPorte, hauteurPorte, fermee));
                         }
                     }
@@ -141,6 +139,12 @@ public class Map {
      * ACTION : Retourne les leviers définis dans le niveau.
      * ________________________________________________________________ */
     public List<Levier> getLeviers() {
+        List<Levier> leviers = new ArrayList<>();
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof Levier) {
+                leviers.add((Levier) objet);
+            }
+        }
         return Collections.unmodifiableList(leviers);
     }
 
@@ -148,6 +152,12 @@ public class Map {
      * ACTION : Retourne les blocs de porte définis dans le niveau.
      * ________________________________________________________________ */
     public List<BlocPorte> getBlocsPorte() {
+        List<BlocPorte> blocsPorte = new ArrayList<>();
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof BlocPorte) {
+                blocsPorte.add((BlocPorte) objet);
+            }
+        }
         return Collections.unmodifiableList(blocsPorte);
     }
 
@@ -155,7 +165,20 @@ public class Map {
      * ACTION : Retourne les blocs mortels définis dans le niveau.
      * ________________________________________________________________ */
     public List<BlocMortel> getBlocsMortels() {
+        List<BlocMortel> blocsMortels = new ArrayList<>();
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof BlocMortel) {
+                blocsMortels.add((BlocMortel) objet);
+            }
+        }
         return Collections.unmodifiableList(blocsMortels);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les objets du décor interactif hors ingrédients.
+     * ________________________________________________________________ */
+    public List<ObjetInteractif> getObjetsDecor() {
+        return Collections.unmodifiableList(objetsDecor);
     }
 
     /* ________________________________________________________________
@@ -163,9 +186,14 @@ public class Map {
      * [INFO] Seule l’occupation de la même porte retarde sa fermeture.
      * ________________________________________________________________ */
     public void mettreAJourMecanismes(List<Entite> entites) {
+        List<BlocPorte> blocsPorte = getBlocsPorte();
         for (BlocPorte bloc : blocsPorte) {
             boolean actif = false;
-            for (Levier levier : leviers) {
+            for (ObjetInteractif objet : objetsDecor) {
+                if (!(objet instanceof Levier)) {
+                    continue;
+                }
+                Levier levier = (Levier) objet;
                 if (levier.getIdMecanisme() == bloc.getIdMecanisme()) {
                     actif = levier.isActive();
                     break;
@@ -185,7 +213,7 @@ public class Map {
                 }
                 for (Entite entite : entites) {
                     if ((entite instanceof Joueur || entite instanceof Monstre)
-                            && entite != candidat && candidat.enCollisionAvec(entite)) {
+                            && candidat.enCollisionAvec(entite)) {
                         porteOccupee = true;
                         break;
                     }
@@ -355,32 +383,33 @@ public class Map {
      * ________________________________________________________________ */
     public boolean collisionHitbox(int x, int y, int largeurHitbox, int hauteurHitbox) {
         // Bords de la hitbox en pixels, -1 car le pixel numéro 0 existe
-        int Hitbox_Pixel_Gauche = x;
-        int Hitbox_Pixel_Droite = x + largeurHitbox - 1;
-        int Hitbox_Pixel_Bas = y;
-        int Hitbox_Pixel_Haut = y + hauteurHitbox - 1;
+        int hitboxPixelGauche = x;
+        int hitboxPixelDroite = x + largeurHitbox - 1;
+        int hitboxPixelBas = y;
+        int hitboxPixelHaut = y + hauteurHitbox - 1;
 
         // On prends le complementaire parce que la position d'un joueur est prise du sol alors que le decor du haut
-        int Hitbox_Pixel_Haut_Decor = getHauteurPixels() - 1 - Hitbox_Pixel_Haut;
-        int Hitbox_Pixel_Bas_Decor = getHauteurPixels() - 1 - Hitbox_Pixel_Bas;
+        int hitboxPixelHautDecor = getHauteurPixels() - 1 - hitboxPixelHaut;
+        int hitboxPixelBasDecor = getHauteurPixels() - 1 - hitboxPixelBas;
 
         // Pixels -> tuiles, floorDiv car en Java -1 / 32 vaut 0 et pas -1
-        int Hitbox_Tuile_Gauche = Math.floorDiv(Hitbox_Pixel_Gauche, tailleTuile);
-        int Hitbox_Tuile_Droite = Math.floorDiv(Hitbox_Pixel_Droite, tailleTuile);
-        int Hitbox_Tuile_Haut = Math.floorDiv(Hitbox_Pixel_Haut_Decor, tailleTuile);
-        int Hitbox_Tuile_Bas = Math.floorDiv(Hitbox_Pixel_Bas_Decor, tailleTuile);
+        int hitboxTuileGauche = Math.floorDiv(hitboxPixelGauche, tailleTuile);
+        int hitboxTuileDroite = Math.floorDiv(hitboxPixelDroite, tailleTuile);
+        int hitboxTuileHaut = Math.floorDiv(hitboxPixelHautDecor, tailleTuile);
+        int hitboxTuileBas = Math.floorDiv(hitboxPixelBasDecor, tailleTuile);
 
         // i parcourt les lignes du haut vers le bas, j les colonnes de gauche à droite
-        for (int i = Hitbox_Tuile_Haut; i <= Hitbox_Tuile_Bas; i++) {
-            for (int j = Hitbox_Tuile_Gauche; j <= Hitbox_Tuile_Droite; j++) {
+        for (int i = hitboxTuileHaut; i <= hitboxTuileBas; i++) {
+            for (int j = hitboxTuileGauche; j <= hitboxTuileDroite; j++) {
                 if (estSolide(i, j)) {
                     return true;
                 }
             }
         }
 
-        for (BlocPorte bloc : blocsPorte) {
-            if (bloc.isCollisionJoueur() && bloc.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof BlocPorte && objet.isCollisionJoueur()
+                    && objet.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
                 return true;
             }
         }

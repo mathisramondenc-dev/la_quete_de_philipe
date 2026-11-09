@@ -11,7 +11,6 @@ public abstract class Entite extends ElementDeJeu {
     protected int gravite = -6;
     protected int vitesseYMin = -24;
     protected final Map map;
-    protected boolean collisionJoueur = false;
 
     /* ________________________________________________________________
      * ACTION : Initialise la position et la map de l'entité.
@@ -38,20 +37,6 @@ public abstract class Entite extends ElementDeJeu {
     @Override
     protected int getTailleTuileDessin() {
         return map.getTailleTuile();
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Définit si cette entité est solide pour les joueurs et les monstres.
-     * ________________________________________________________________ */
-    public void definirCollisionJoueur(boolean collisionJoueur) {
-        this.collisionJoueur = collisionJoueur;
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Indique si cette entité est solide pour les joueurs et les monstres.
-     * ________________________________________________________________ */
-    public boolean isCollisionJoueur() {
-        return collisionJoueur;
     }
 
     /* ________________________________________________________________
@@ -113,11 +98,6 @@ public abstract class Entite extends ElementDeJeu {
     }
 
     /* ________________________________________________________________
-     * ACTION : Retourne la hitbox sous la forme largeur puis hauteur.
-     * ________________________________________________________________ */
-    public abstract int[] getHitbox();
-
-    /* ________________________________________________________________
      * ACTION : Retourne la vitesse de déplacement.
      * ________________________________________________________________ */
     public abstract int getVitesse();
@@ -128,31 +108,8 @@ public abstract class Entite extends ElementDeJeu {
     public abstract int getForceSaut();
 
     /* ________________________________________________________________
-     * ACTION : Retourne le chemin de l'image.
-     * ________________________________________________________________ */
-    public abstract String getCheminImage();
-
-    /* ________________________________________________________________
      * ACTION : Actualise les intentions et les déplacements.
      * ________________________________________________________________ */
     public abstract void mettreAJour();
-
-    /* ________________________________________________________________
-     * ACTION : Définit la position sur l'axe x.
-     * ________________________________________________________________ */
-    public void setPositionX(int positionX) {
-        this.positionX = positionX;
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Définit la position sur l'axe y.
-     * ________________________________________________________________ */
-    public void setPositionY(int positionY) {
-        this.positionY = positionY;
-    }
-    
-    
-    
-    
 
 }
