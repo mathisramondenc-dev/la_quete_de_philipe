@@ -1,5 +1,9 @@
 package delaterrealassiette;
 
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,8 +14,8 @@ import java.util.List;
  * [DEPENDANCE] FenetreDeJeu appelle miseAJour et rendu à chaque tic.
  * ________________________________________________________________ */
 public class Jeu {
-    private static final int DEPART_X = 32;
-    private static final int DEPART_Y = 64;
+    private static final int departX = 32;
+    private static final int departY = 64;
 
     private String fichierNiveau;
     private int numeroNiveau;
@@ -21,6 +25,8 @@ public class Jeu {
     private List<Ingredient> ingredients;
     private InventaireRecette inventaireRecette;
     private boolean victoire;
+    private static final int nombreTicsAvantReapparition = 30;
+    private int ticsAvantReapparition;
 
     /* ________________________________________________________________
      * ACTION : Charge un niveau choisi et initialise sa recette.
@@ -40,9 +46,19 @@ public class Jeu {
         joueur = joueurPrecedent == null
                 ? new Joueur(carte, "joueurtesthitbox")
                 : new Joueur(carte, joueurPrecedent);
-        joueur.definirPosition(DEPART_X, DEPART_Y);
+        int[] positionDepart = carte.getPositionDepart();
+        if (positionDepart == null) {
+            positionDepart = new int[]{departX, departY};
+        }
+        joueur.definirPosition(positionDepart[0], positionDepart[1]);
         entites = new ArrayList<>();
         entites.add(joueur);
+        for (Map.PositionMonstre positionMonstre : carte.getPositionsMonstres()) {
+            if ("RAT".equals(positionMonstre.getType())) {
+                entites.add(Monstre.creerRat(carte, positionMonstre.getPositionX(),
+                        positionMonstre.getPositionY()));
+            }
+        }
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
     }
@@ -65,9 +81,18 @@ public class Jeu {
 
     /* ________________________________________________________________
      * ACTION : Met à jour le joueur, les mécanismes, les entités et la recette.
+     * [INFO] La mort est affichée avant le respawn, après traitement des dégâts.
+     * [DEPENDANCE] Monstre utilise la collision commune d'ElementDeJeu.
      * ________________________________________________________________ */
     public void miseAJour(boolean[] etatBoutons) {
         if (victoire) {
+            return;
+        }
+        if (ticsAvantReapparition > 0) {
+            ticsAvantReapparition--;
+            if (ticsAvantReapparition == 0) {
+                reset();
+            }
             return;
         }
         joueur.miseAJourIntentions(etatBoutons);
@@ -84,11 +109,16 @@ public class Jeu {
         for (Entite entite : entites) {
             entite.mettreAJour();
         }
+        for (Entite entite : entites) {
+            if (entite instanceof Monstre) {
+                ((Monstre) entite).infligerDegatsAuContact(joueur);
+            }
+        }
         if (estTombeDansLeVide() || estEnContactAvecBlocMortel()) {
             joueur.modifierPointsDeVie(-joueur.getPointsDeVie());
         }
         if (joueur.estMort()) {
-            reset();
+            ticsAvantReapparition = nombreTicsAvantReapparition;
             return;
         }
         for (Ingredient ingredient : ingredients) {
@@ -169,6 +199,42 @@ public class Jeu {
             int yEcran = carte.getHauteurPixels() - objet.getPositionY() - hitbox[1];
             objet.dessiner(contexte, objet.getPositionX(), yEcran);
         }
+        dessinerPointsDeVie(contexte);
+        if (ticsAvantReapparition > 0) {
+            Composite compositePrecedent = contexte.getComposite();
+            contexte.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.72f));
+            contexte.setColor(Color.BLACK);
+            contexte.fillRect(0, 0, carte.getLargeurPixels(), carte.getHauteurPixels());
+            contexte.setComposite(compositePrecedent);
+            contexte.setColor(Color.WHITE);
+            contexte.setFont(new Font("SansSerif", Font.BOLD, 54));
+            String message = "VOUS ÊTES MORT";
+            int largeurMessage = contexte.getFontMetrics().stringWidth(message);
+            contexte.drawString(message,
+                    (carte.getLargeurPixels() - largeurMessage) / 2,
+                    carte.getHauteurPixels() / 2);
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Affiche les points de vie du joueur.
+     * ________________________________________________________________ */
+    private void dessinerPointsDeVie(Graphics2D contexte) {
+        int largeurBarre = 240;
+        int hauteurBarre = 20;
+        int largeurRemplie = largeurBarre * joueur.getPointsDeVie()
+                / joueur.getPointsDeVieMax();
+        contexte.setColor(Color.BLACK);
+        contexte.fillRect(18, 18, largeurBarre + 4, hauteurBarre + 28);
+        contexte.setColor(Color.DARK_GRAY);
+        contexte.fillRect(20, 40, largeurBarre, hauteurBarre);
+        contexte.setColor(joueur.getPointsDeVie() > joueur.getPointsDeVieMax() / 3
+                ? new Color(70, 205, 90) : new Color(230, 65, 55));
+        contexte.fillRect(20, 40, largeurRemplie, hauteurBarre);
+        contexte.setColor(Color.WHITE);
+        contexte.setFont(new Font("SansSerif", Font.BOLD, 18));
+        contexte.drawString("PV " + joueur.getPointsDeVie() + " / "
+                + joueur.getPointsDeVieMax(), 20, 34);
     }
 
     /* ________________________________________________________________

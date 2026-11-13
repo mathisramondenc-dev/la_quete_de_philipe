@@ -36,6 +36,8 @@ public class Map {
     private boolean modifie;
     private final List<Ingredient> ingredients = new ArrayList<>();
     private final List<ObjetInteractif> objetsDecor = new ArrayList<>();
+    private final List<PositionMonstre> positionsMonstres = new ArrayList<>();
+    private int[] positionDepart;
 
     /* ________________________________________________________________
      * ACTION : Construit la map à partir d'un fichier texte FruitEditor.
@@ -77,13 +79,21 @@ public class Map {
                 if (ligne.isEmpty()) {
                     continue;
                 }
-                if ("INGREDIENTS".equalsIgnoreCase(ligne)
-                        || "MECANISMES".equalsIgnoreCase(ligne)) {
-                    section = ligne.toUpperCase(java.util.Locale.ROOT);
+                String sectionCandidate = ligne.toUpperCase(java.util.Locale.ROOT);
+                if ("SPAWN".equals(sectionCandidate)
+                        || "INGREDIENTS".equals(sectionCandidate)
+                        || "MECANISMES".equals(sectionCandidate)
+                        || "MONSTRES".equals(sectionCandidate)) {
+                    section = sectionCandidate;
                     continue;
                 }
                 String[] champs = ligne.split("\\s+");
-                if ("INGREDIENTS".equals(section)) {
+                if ("SPAWN".equals(section)) {
+                    int colonne = Integer.parseInt(champs[0]);
+                    int ligneGrille = Integer.parseInt(champs[1]);
+                    positionDepart = new int[]{colonne * tailleTuile,
+                            getHauteurPixels() - (ligneGrille + 1) * tailleTuile};
+                } else if ("INGREDIENTS".equals(section)) {
                     TypeIngredient type = TypeIngredient.valueOf(champs[0]);
                     int colonne = Integer.parseInt(champs[1]);
                     int ligneGrille = Integer.parseInt(champs[2]);
@@ -92,6 +102,13 @@ public class Map {
                     int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile
                             + (tailleTuile - tailleElement) / 2;
                     ingredients.add(new Ingredient(type, positionX, positionY));
+                } else if ("MONSTRES".equals(section)) {
+                    String type = champs[0].toUpperCase(java.util.Locale.ROOT);
+                    int colonne = Integer.parseInt(champs[1]);
+                    int ligneGrille = Integer.parseInt(champs[2]);
+                    int positionX = colonne * tailleTuile;
+                    int positionY = getHauteurPixels() - ligneGrille * tailleTuile;
+                    positionsMonstres.add(new PositionMonstre(type, positionX, positionY));
                 } else if ("MECANISMES".equals(section)) {
                     if ("MORTEL".equalsIgnoreCase(champs[0])) {
                         int colonne = Integer.parseInt(champs[1]);
@@ -101,7 +118,8 @@ public class Map {
                         int hauteurMortelle = champs.length > 4
                                 ? Integer.parseInt(champs[4]) : 1;
                         int positionX = colonne * tailleTuile;
-                        int positionY = getHauteurPixels() - (ligneGrille + hauteurMortelle) * tailleTuile;
+                        int positionY = getHauteurPixels()
+                                - (ligneGrille + hauteurMortelle) * tailleTuile;
                         objetsDecor.add(new BlocMortel(this, positionX, positionY,
                                 largeurMortelle * tailleTuile, hauteurMortelle * tailleTuile));
                     } else {
@@ -116,8 +134,9 @@ public class Map {
                             int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
                             int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
                             boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
-                            objetsDecor.add(new BlocPorte(this, identifiant, prochainIdentifiantPorte++,
-                                    positionX, positionY, largeurPorte, hauteurPorte, fermee));
+                            objetsDecor.add(new BlocPorte(this, identifiant,
+                                    prochainIdentifiantPorte++, positionX, positionY,
+                                    largeurPorte, hauteurPorte, fermee));
                         }
                     }
                 }
@@ -132,6 +151,58 @@ public class Map {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+
+    /* ________________________________________________________________
+     * ACTION : Retourne la position de départ en pixels, depuis le bas-gauche.
+     * [INFO] La position vaut null si le niveau ne déclare pas SPAWN.
+     * ________________________________________________________________ */
+    public int[] getPositionDepart() {
+        return positionDepart == null ? null : positionDepart.clone();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne les types et positions des monstres déclarés.
+     * ________________________________________________________________ */
+    public List<PositionMonstre> getPositionsMonstres() {
+        return Collections.unmodifiableList(positionsMonstres);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Conserve le type et la position en pixels d'un monstre.
+     * ________________________________________________________________ */
+    public static final class PositionMonstre {
+        private final String type;
+        private final int positionX;
+        private final int positionY;
+
+        private PositionMonstre(String type, int positionX, int positionY) {
+            this.type = type;
+            this.positionX = positionX;
+            this.positionY = positionY;
+        }
+
+        /* ________________________________________________________________
+         * ACTION : Retourne le type de monstre déclaré.
+         * ________________________________________________________________ */
+        public String getType() {
+            return type;
+        }
+
+        /* ________________________________________________________________
+         * ACTION : Retourne la coordonnée horizontale en pixels.
+         * ________________________________________________________________ */
+        public int getPositionX() {
+            return positionX;
+        }
+
+        /* ________________________________________________________________
+         * ACTION : Retourne la coordonnée verticale en pixels.
+         * ________________________________________________________________ */
+        public int getPositionY() {
+            return positionY;
         }
     }
 
