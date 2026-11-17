@@ -273,30 +273,91 @@ public class GestionBDD {
         while ((collecteEnCours=jeu.getCollectesEnAttente().poll())!=null) {
             final int niveauCollecte=collecteEnCours.niveau;
             final int idCollecte=collecteEnCours.id;
-            String sql="UPDATE ingredient_multi SET ramasse=1,ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse=0";
-            boolean accepte=false, dejaRamassee=false;
+            boolean accepte=false, refuseeParAutre=false, etatConnu=false;
             try {
-                try(PreparedStatement p=c.prepareStatement(sql)) {
+                String sql="UPDATE ingredient_multi SET ramasse=1,ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse=0";
+                try (PreparedStatement p=c.prepareStatement(sql)) {
                     p.setString(1,i.getPseudo()); p.setString(2,code); p.setInt(3,niveauCollecte); p.setInt(4,idCollecte);
                     accepte=p.executeUpdate()==1;
+                } catch (SQLException e) {
+                    if (!estColonneManquante(e, "ramasse")) throw e;
+                    // Ancien schéma : ramasse_par est la source d'état et le verrou atomique.
+                    String fallback="UPDATE ingredient_multi SET ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND (ramasse_par IS NULL OR ramasse_par='')";
+                    try (PreparedStatement p=c.prepareStatement(fallback)) {
+                        p.setString(1,i.getPseudo()); p.setString(2,code); p.setInt(3,niveauCollecte); p.setInt(4,idCollecte);
+                        accepte=p.executeUpdate()==1;
+                    }
                 }
-                if (!accepte) {
-                    try(PreparedStatement p=c.prepareStatement("SELECT ramasse FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ingredient_id=?")) {
+                if (accepte) {
+                    etatConnu=true;
+                } else {
+                    String select="SELECT ramasse,ramasse_par FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ingredient_id=?";
+                    try (PreparedStatement p=c.prepareStatement(select)) {
                         p.setString(1,code); p.setInt(2,niveauCollecte); p.setInt(3,idCollecte);
-                        try(ResultSet r=p.executeQuery()) { dejaRamassee=r.next() && r.getBoolean(1); }
+                        try (ResultSet r=p.executeQuery()) {
+                            if (r.next()) {
+                                boolean ramasse=r.getBoolean("ramasse");
+                                String proprietaire=r.getString("ramasse_par");
+                                etatConnu=true;
+                                if (ramasse || (proprietaire!=null && !proprietaire.isEmpty())) {
+                                    accepte=proprietaire==null || proprietaire.isEmpty() || i.getPseudo().equals(proprietaire);
+                                    refuseeParAutre=proprietaire!=null && !proprietaire.isEmpty() && !i.getPseudo().equals(proprietaire);
+                                } else {
+                                    // Ligne encore libre : ne pas annuler l'état local, retenter au prochain cycle.
+                                    etatConnu=false;
+                                }
+                            }
+                        }
+                    } catch (SQLException e) {
+                        if (!estColonneManquante(e, "ramasse")) throw e;
+                        String fallback="SELECT ramasse_par FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ingredient_id=?";
+                        try (PreparedStatement p=c.prepareStatement(fallback)) {
+                            p.setString(1,code); p.setInt(2,niveauCollecte); p.setInt(3,idCollecte);
+                            try (ResultSet r=p.executeQuery()) {
+                                if (r.next()) {
+                                    String proprietaire=r.getString(1);
+                                    if (proprietaire!=null && !proprietaire.isEmpty()) {
+                                        etatConnu=true;
+                                        accepte=i.getPseudo().equals(proprietaire);
+                                        refuseeParAutre=!accepte;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } catch (SQLException e) {
+                System.err.println("Erreur SQL lors de la collecte (partie="+code+", niveau="+niveauCollecte+", ingrédient="+idCollecte+"): "+e.getMessage());
                 jeu.getCollectesEnAttente().add(collecteEnCours);
                 throw e;
             }
-            final boolean succes=accepte, consomme=dejaRamassee;
-            javax.swing.SwingUtilities.invokeLater(()->jeu.resultatCollecte(niveauCollecte,idCollecte,succes,consomme));
+            if (!etatConnu) {
+                jeu.getCollectesEnAttente().add(collecteEnCours);
+                break;
+            }
+            final boolean succes=accepte, refus=refuseeParAutre;
+            javax.swing.SwingUtilities.invokeLater(()->jeu.resultatCollecte(niveauCollecte,idCollecte,succes,refus));
         }
         String deg="UPDATE monstre_multi SET vivant=IF(pv-?>0,1,0),pv=GREATEST(0,pv-?) WHERE code_partie=? AND niveau=? AND monstre_id=?";
         try(PreparedStatement p=c.prepareStatement(deg)){String evenementDegats;while((evenementDegats=jeu.getDegatsEnAttente().poll())!=null){String[] v=evenementDegats.split(":");int valeur=Integer.parseInt(v[1]);p.setInt(1,valeur);p.setInt(2,valeur);p.setString(3,code);p.setInt(4,niv);p.setInt(5,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
         String lev="UPDATE levier_multi SET actif=? WHERE code_partie=? AND niveau=? AND levier_id=? AND actif<>?";
         try(PreparedStatement p=c.prepareStatement(lev)){String evenementLevier;while((evenementLevier=jeu.getLeviersEnAttente().poll())!=null){String[] v=evenementLevier.split(":");p.setBoolean(1,Boolean.parseBoolean(v[1]));p.setString(2,code);p.setInt(3,niv);p.setInt(4,Integer.parseInt(v[0]));p.setBoolean(5,Boolean.parseBoolean(v[1]));p.addBatch();}p.executeBatch();}
+    }
+
+    private static boolean estColonneManquante(SQLException e, String colonne) {
+        String message=e.getMessage();
+        String m=message==null?"":message.toLowerCase(java.util.Locale.ROOT);
+        return "42S22".equals(e.getSQLState()) && (m.isEmpty() || m.contains(colonne.toLowerCase(java.util.Locale.ROOT)))
+                || (m.contains("unknown column") && m.contains(colonne.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    private static void ajouterEtatIngredient(int id,int x,int y,String nomType,boolean ramasse,
+            List<EtatIngredient> ingredients,java.util.Map<TypeIngredient,Integer> quantites) throws SQLException {
+        final TypeIngredient type;
+        try { type=TypeIngredient.valueOf(nomType); }
+        catch (IllegalArgumentException e) { throw new SQLException("Type d'ingrédient inconnu dans ingredient_multi: "+nomType,e); }
+        ingredients.add(new EtatIngredient(id,x,y,type,ramasse));
+        if(ramasse) quantites.put(type,quantites.getOrDefault(type,0)+1);
     }
 
     private static void synchroniserMonde(Connection c,InfosPartie i,Jeu jeu) throws SQLException {
@@ -311,13 +372,27 @@ public class GestionBDD {
         final List<EtatIngredient> ingredients=new ArrayList<>();
         final java.util.Map<TypeIngredient,Integer> quantites=new java.util.EnumMap<>(TypeIngredient.class);
         String sel="SELECT ingredient_id,x,y,type,ramasse FROM ingredient_multi WHERE code_partie=? AND niveau=? ORDER BY ingredient_id";
-        try(PreparedStatement p=c.prepareStatement(sel)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){
-            while(r.next()) {
-                TypeIngredient type=TypeIngredient.valueOf(r.getString("type")); boolean ramasse=r.getBoolean("ramasse");
-                EtatIngredient e=new EtatIngredient(r.getInt("ingredient_id"),r.getInt("x"),r.getInt("y"),type,ramasse); ingredients.add(e);
-                if(ramasse) quantites.put(type,quantites.getOrDefault(type,0)+1);
+        try (PreparedStatement p=c.prepareStatement(sel)) {
+            p.setString(1,code); p.setInt(2,niv);
+            try (ResultSet r=p.executeQuery()) {
+                while(r.next()) ajouterEtatIngredient(r.getInt("ingredient_id"),r.getInt("x"),r.getInt("y"),
+                        r.getString("type"),r.getBoolean("ramasse"),ingredients,quantites);
             }
-        }}
+        } catch (SQLException e) {
+            if (!estColonneManquante(e,"ramasse")) throw e;
+            System.err.println("Schéma ingredient_multi sans colonne ramasse; lecture de repli via ramasse_par.");
+            String fallback="SELECT ingredient_id,x,y,type,ramasse_par FROM ingredient_multi WHERE code_partie=? AND niveau=? ORDER BY ingredient_id";
+            try (PreparedStatement p=c.prepareStatement(fallback)) {
+                p.setString(1,code); p.setInt(2,niv);
+                try (ResultSet r=p.executeQuery()) {
+                    while(r.next()) {
+                        String proprietaire=r.getString("ramasse_par");
+                        ajouterEtatIngredient(r.getInt("ingredient_id"),r.getInt("x"),r.getInt("y"),
+                                r.getString("type"),proprietaire!=null && !proprietaire.isEmpty(),ingredients,quantites);
+                    }
+                }
+            }
+        }
         final List<EtatMonstre> monstres=lireMonstres(c,code,niv);
         final java.util.Map<Integer,Boolean> leviers=new java.util.HashMap<>();
         sel="SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau=?";

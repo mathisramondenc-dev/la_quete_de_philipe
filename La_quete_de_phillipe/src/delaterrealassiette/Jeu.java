@@ -31,6 +31,8 @@ public class Jeu {
     private InfosPartie infosPartie;
     private final java.util.concurrent.ConcurrentLinkedQueue<DemandeCollecte> collectesEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final java.util.Set<String> collectesOptimistes = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> collectesLocalesConfirmees = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> collectesPartageesConfirmees = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private volatile boolean recettePartageeComplete;
     private volatile boolean mondeIngredientsPret;
 
@@ -282,14 +284,24 @@ public class Jeu {
     public InfosPartie getInfosPartie() { return infosPartie; }
     public java.util.Queue<DemandeCollecte> getCollectesEnAttente() { return collectesEnAttente; }
     private static String cleCollecte(int niveau, int id) { return niveau + ":" + id; }
-    public void resultatCollecte(int niveau, int id, boolean acceptee, boolean dejaRamassee) {
-        collectesOptimistes.remove(cleCollecte(niveau, id));
-        if (niveau != numeroNiveau || acceptee) return;
-        if (id >= 0 && id < ingredients.size()) {
+    public void resultatCollecte(int niveau, int id, boolean acceptee, boolean refuseeParAutre) {
+        String cle = cleCollecte(niveau, id);
+        if (acceptee) {
+            collectesOptimistes.remove(cle);
+            collectesLocalesConfirmees.add(cle);
+        } else if (refuseeParAutre) {
+            // La BDD a explicitement confirmé que l'ingrédient appartient à un autre joueur.
+            collectesOptimistes.remove(cle);
+            collectesLocalesConfirmees.remove(cle);
+            collectesPartageesConfirmees.add(cle);
+        } else {
+            return; // Aucun refus définitif : conserver l'état optimiste.
+        }
+        if (niveau == numeroNiveau && id >= 0 && id < ingredients.size()) {
+            recalculerInventairePartage();
             Ingredient g = ingredients.get(id);
-            // Si un autre joueur l'a gagné, son compteur partagé sera confirmé au prochain poll.
-            g.definirActif(!dejaRamassee);
-            if (!dejaRamassee) inventaireRecette.retirer(g.getTypeIngredient());
+            g.definirActif(!(collectesOptimistes.contains(cle) || collectesLocalesConfirmees.contains(cle)
+                    || collectesPartageesConfirmees.contains(cle)));
         }
     }
     public void appliquerIngredientsPartages(List<GestionBDD.EtatIngredient> etats,
@@ -298,6 +310,7 @@ public class Jeu {
         java.util.Map<TypeIngredient,Integer> requises = new java.util.EnumMap<>(TypeIngredient.class);
         for (GestionBDD.EtatIngredient e : etats) {
             requises.put(e.type, requises.getOrDefault(e.type, 0) + 1);
+            if (e.ramasse) collectesPartageesConfirmees.add(cleCollecte(numeroNiveau, e.id));
             if (e.id < 0 || e.id >= ingredients.size()) continue;
             Ingredient ancien = ingredients.get(e.id);
             TypeIngredient type = e.type;
@@ -307,11 +320,28 @@ public class Jeu {
             } else {
                 ancien.definirPosition(e.x, e.y);
             }
-            boolean optimiste = collectesOptimistes.contains(cleCollecte(numeroNiveau, e.id));
-            ancien.definirActif(!e.ramasse && !optimiste);
+            String cle = cleCollecte(numeroNiveau, e.id);
+            boolean dejaConfirme = e.ramasse || collectesPartageesConfirmees.contains(cle)
+                    || collectesLocalesConfirmees.contains(cle);
+            ancien.definirActif(!(dejaConfirme || collectesOptimistes.contains(cle)));
         }
         inventaireRecette.definirEtatPartage(requises, quantites);
+        recalculerInventairePartage();
         mondeIngredientsPret = true;
+        recettePartageeComplete = inventaireRecette.estComplete();
+    }
+    private void recalculerInventairePartage() {
+        java.util.Map<TypeIngredient,Integer> requises = inventaireRecette.getQuantitesRequises();
+        java.util.Map<TypeIngredient,Integer> ramassees = new java.util.EnumMap<>(TypeIngredient.class);
+        for (int id = 0; id < ingredients.size(); id++) {
+            String cle = cleCollecte(numeroNiveau, id);
+            if (collectesOptimistes.contains(cle) || collectesLocalesConfirmees.contains(cle)
+                    || collectesPartageesConfirmees.contains(cle)) {
+                TypeIngredient type = ingredients.get(id).getTypeIngredient();
+                ramassees.put(type, ramassees.getOrDefault(type, 0) + 1);
+            }
+        }
+        inventaireRecette.definirEtatPartage(requises, ramassees);
         recettePartageeComplete = inventaireRecette.estComplete();
     }
     public java.util.Queue<String> getLeviersEnAttente() { return leviersEnAttente; }
