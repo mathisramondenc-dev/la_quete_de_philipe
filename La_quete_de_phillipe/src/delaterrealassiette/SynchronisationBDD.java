@@ -8,7 +8,7 @@ import java.util.List;
 /** Travail JDBC hors EDT: une connexion persistante dédiée à ce thread. */
 public final class SynchronisationBDD implements Runnable {
     private static final long INTERVALLE_JOUEURS_MS = 100L;
-    private static final long INTERVALLE_MONDE_MS = 700L;
+    private static final long INTERVALLE_MONDE_MS = 300L;
     private final Jeu jeu;
     private final InfosPartie infos;
     private final List<JoueurDistant> distants = new ArrayList<>();

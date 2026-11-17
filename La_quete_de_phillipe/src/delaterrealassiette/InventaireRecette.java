@@ -43,6 +43,25 @@ public class InventaireRecette {
         }
     }
 
+    /** Retire une collecte optimiste refusée par le serveur, sans passer sous zéro. */
+    public void retirer(TypeIngredient typeIngredient) {
+        int quantite = quantitesRamassees.getOrDefault(typeIngredient, 0);
+        if (quantite > 0) quantitesRamassees.put(typeIngredient, quantite - 1);
+    }
+
+    /** Remplace le compteur par l'état partagé calculé depuis les ingrédients consommés. */
+    public void definirEtatPartage(Map<TypeIngredient, Integer> requises,
+            Map<TypeIngredient, Integer> ramassees) {
+        quantitesRequises.clear();
+        quantitesRamassees.clear();
+        for (Map.Entry<TypeIngredient, Integer> entree : requises.entrySet()) {
+            int requis = Math.max(0, entree.getValue());
+            quantitesRequises.put(entree.getKey(), requis);
+            quantitesRamassees.put(entree.getKey(), Math.max(0,
+                    Math.min(requis, ramassees.getOrDefault(entree.getKey(), 0))));
+        }
+    }
+
     /* ________________________________________________________________
      * ACTION : Indique si tous les ingrédients requis ont été ramassés.
      * ________________________________________________________________ */

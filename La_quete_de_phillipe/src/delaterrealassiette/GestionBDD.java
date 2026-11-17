@@ -244,6 +244,13 @@ public class GestionBDD {
     }
 
 
+    // === MULTIJOUEUR === État persistant d'un ingrédient et de son type.
+    static final class EtatIngredient {
+        final int id, x, y; final TypeIngredient type; final boolean ramasse;
+        EtatIngredient(int id, int x, int y, TypeIngredient type, boolean ramasse) {
+            this.id=id; this.x=x; this.y=y; this.type=type; this.ramasse=ramasse;
+        }
+    }
     // === MULTIJOUEUR === Snapshot de monstre lu depuis monstre_multi.
     static final class EtatMonstre {
         final int id,x,y,pv; final boolean vivant,gauche;
@@ -262,8 +269,28 @@ public class GestionBDD {
     /** Publie les événements en lot à chaque cycle de 100 ms, sans attendre le polling du monde. */
     private static void publierEvenements(Connection c, InfosPartie i, Jeu jeu) throws SQLException {
         String code=i.getIdentifiantPartie(); int niv=jeu.getNumeroNiveau();
-        String sql="UPDATE ingredient_multi SET ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse_par IS NULL";
-        try(PreparedStatement p=c.prepareStatement(sql)){Integer id;while((id=jeu.getCollectesEnAttente().poll())!=null){p.setString(1,i.getPseudo());p.setString(2,code);p.setInt(3,niv);p.setInt(4,id);p.addBatch();}p.executeBatch();}
+        Jeu.DemandeCollecte demande;
+        while ((demande=jeu.getCollectesEnAttente().poll())!=null) {
+            String sql="UPDATE ingredient_multi SET ramasse=1,ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse=0";
+            boolean accepte=false, dejaRamassee=false;
+            try {
+                try(PreparedStatement p=c.prepareStatement(sql)) {
+                    p.setString(1,i.getPseudo()); p.setString(2,code); p.setInt(3,demande.niveau); p.setInt(4,demande.id);
+                    accepte=p.executeUpdate()==1;
+                }
+                if (!accepte) {
+                    try(PreparedStatement p=c.prepareStatement("SELECT ramasse FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ingredient_id=?")) {
+                        p.setString(1,code); p.setInt(2,demande.niveau); p.setInt(3,demande.id);
+                        try(ResultSet r=p.executeQuery()) { dejaRamassee=r.next() && r.getBoolean(1); }
+                    }
+                }
+            } catch (SQLException e) {
+                jeu.getCollectesEnAttente().add(demande);
+                throw e;
+            }
+            final boolean succes=accepte, consomme=dejaRamassee;
+            javax.swing.SwingUtilities.invokeLater(()->jeu.resultatCollecte(demande.niveau,demande.id,succes,consomme));
+        }
         String deg="UPDATE monstre_multi SET vivant=IF(pv-?>0,1,0),pv=GREATEST(0,pv-?) WHERE code_partie=? AND niveau=? AND monstre_id=?";
         try(PreparedStatement p=c.prepareStatement(deg)){String demande;while((demande=jeu.getDegatsEnAttente().poll())!=null){String[] v=demande.split(":");int valeur=Integer.parseInt(v[1]);p.setInt(1,valeur);p.setInt(2,valeur);p.setString(3,code);p.setInt(4,niv);p.setInt(5,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
         String lev="UPDATE levier_multi SET actif=? WHERE code_partie=? AND niveau=? AND levier_id=? AND actif<>?";
@@ -279,13 +306,21 @@ public class GestionBDD {
             String up="UPDATE monstre_multi SET x=?,y=?,pv=?,vivant=?,direction_gauche=? WHERE code_partie=? AND niveau=? AND monstre_id=? AND (x<>? OR y<>? OR pv<>? OR vivant<>? OR direction_gauche<>?)";
             try(PreparedStatement p=c.prepareStatement(up)){for(Entite e:jeu.getEntites())if(e instanceof Monstre){Monstre m=(Monstre)e;p.setInt(1,m.getPositionX());p.setInt(2,m.getPositionY());p.setInt(3,m.getPointsDeVie());p.setBoolean(4,m.estVivant());p.setBoolean(5,m.isRegardeVersLaGauche());p.setString(6,code);p.setInt(7,niv);p.setInt(8,m.getIndexMulti());p.setInt(9,m.getPositionX());p.setInt(10,m.getPositionY());p.setInt(11,m.getPointsDeVie());p.setBoolean(12,m.estVivant());p.setBoolean(13,m.isRegardeVersLaGauche());p.addBatch();}p.executeBatch();}
         }
-        final List<Integer> collectes=new ArrayList<>();String sel="SELECT ingredient_id FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ramasse_par IS NOT NULL";
-        try(PreparedStatement p=c.prepareStatement(sel)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){while(r.next())collectes.add(r.getInt(1));}}
+        final List<EtatIngredient> ingredients=new ArrayList<>();
+        final java.util.Map<TypeIngredient,Integer> quantites=new java.util.EnumMap<>(TypeIngredient.class);
+        String sel="SELECT ingredient_id,x,y,type,ramasse FROM ingredient_multi WHERE code_partie=? AND niveau=? ORDER BY ingredient_id";
+        try(PreparedStatement p=c.prepareStatement(sel)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){
+            while(r.next()) {
+                TypeIngredient type=TypeIngredient.valueOf(r.getString("type")); boolean ramasse=r.getBoolean("ramasse");
+                EtatIngredient e=new EtatIngredient(r.getInt("ingredient_id"),r.getInt("x"),r.getInt("y"),type,ramasse); ingredients.add(e);
+                if(ramasse) quantites.put(type,quantites.getOrDefault(type,0)+1);
+            }
+        }}
         final List<EtatMonstre> monstres=lireMonstres(c,code,niv);
         final java.util.Map<Integer,Boolean> leviers=new java.util.HashMap<>();
         sel="SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau=?";
         try(PreparedStatement p=c.prepareStatement(sel)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){while(r.next())leviers.put(r.getInt(1),r.getBoolean(2));}}
-        javax.swing.SwingUtilities.invokeLater(()->{jeu.appliquerCollectesDistantes(collectes);if(!i.estHebergeur())jeu.appliquerMonstres(monstres);jeu.appliquerLeviersDistants(leviers);});
+        javax.swing.SwingUtilities.invokeLater(()->{jeu.appliquerIngredientsPartages(ingredients,quantites);if(!i.estHebergeur())jeu.appliquerMonstres(monstres);jeu.appliquerLeviersDistants(leviers);});
     }
     private static List<EtatMonstre> lireMonstres(Connection c,String code,int niv)throws SQLException{
         List<EtatMonstre> l=new ArrayList<>();String sql="SELECT monstre_id,x,y,pv,vivant,direction_gauche FROM monstre_multi WHERE code_partie=? AND niveau=?";
@@ -309,7 +344,7 @@ public class GestionBDD {
         }
     }
 
-    // === MULTIJOUEUR === Publication de position à 100 ms, monde à ~700 ms.
+    // === MULTIJOUEUR === Publication de position à 100 ms, monde à ~300 ms.
     static void synchroniser(Connection c, InfosPartie infos, Jeu jeu, List<JoueurDistant> distants,
             EtatSynchronisation etat, boolean lireMonde) throws SQLException {
         Joueur j=jeu.getJoueur();

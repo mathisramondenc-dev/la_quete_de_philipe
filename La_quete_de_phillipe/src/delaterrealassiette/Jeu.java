@@ -29,7 +29,17 @@ public class Jeu {
     private int ticsAvantReapparition;
     // === MULTIJOUEUR === Configuration de session et file de collectes à publier.
     private InfosPartie infosPartie;
-    private final java.util.concurrent.ConcurrentLinkedQueue<Integer> collectesEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.concurrent.ConcurrentLinkedQueue<DemandeCollecte> collectesEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.Set<String> collectesOptimistes = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private volatile boolean recettePartageeComplete;
+    private volatile boolean mondeIngredientsPret;
+
+    static final class DemandeCollecte {
+        final int niveau, id;
+        final TypeIngredient type;
+        DemandeCollecte(int niveau, int id, TypeIngredient type) { this.niveau=niveau; this.id=id; this.type=type; }
+    }
+
     private final java.util.concurrent.ConcurrentLinkedQueue<String> leviersEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final java.util.concurrent.ConcurrentLinkedQueue<String> degatsEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
@@ -70,6 +80,8 @@ public class Jeu {
         }
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
+        recettePartageeComplete = false;
+        mondeIngredientsPret = infosPartie == null || !infosPartie.estMultijoueur();
         int indexLevier=0;
         for (Levier levier:carte.getLeviers()) levier.definirIndexMulti(indexLevier++);
     }
@@ -135,6 +147,7 @@ public class Jeu {
             ticsAvantReapparition = nombreTicsAvantReapparition;
             return;
         }
+        if (!mondeIngredientsPret) return;
         for (Ingredient ingredient : ingredients) {
             if (!ingredient.isActif()) {
                 continue;
@@ -144,13 +157,17 @@ public class Jeu {
                         && ingredient.enCollisionAvec(entite)) {
                     ingredient.interagir((Joueur) entite);
                     inventaireRecette.ajouter(ingredient.getTypeIngredient());
-                    // === MULTIJOUEUR === Chaque inventaire reste individuel; la collecte est publiée par index.
-                    if (infosPartie != null && infosPartie.estMultijoueur()) collectesEnAttente.add(ingredients.indexOf(ingredient));
+                    if (infosPartie != null && infosPartie.estMultijoueur()) {
+                        int id = ingredients.indexOf(ingredient);
+                        collectesOptimistes.add(cleCollecte(numeroNiveau, id));
+                        collectesEnAttente.add(new DemandeCollecte(numeroNiveau, id, ingredient.getTypeIngredient()));
+                    }
                     break;
                 }
             }
         }
-        if (inventaireRecette.estComplete()) {
+        if (inventaireRecette.estComplete()
+                && (infosPartie == null || !infosPartie.estMultijoueur() || recettePartageeComplete)) {
             passerAuNiveauSuivant();
         }
     }
@@ -263,7 +280,40 @@ public class Jeu {
             ((Monstre) entite).definirAutoriteIA(!infos.estMultijoueur() || infos.estHebergeur());
     }
     public InfosPartie getInfosPartie() { return infosPartie; }
-    public java.util.Queue<Integer> getCollectesEnAttente() { return collectesEnAttente; }
+    public java.util.Queue<DemandeCollecte> getCollectesEnAttente() { return collectesEnAttente; }
+    private static String cleCollecte(int niveau, int id) { return niveau + ":" + id; }
+    public void resultatCollecte(int niveau, int id, boolean acceptee, boolean dejaRamassee) {
+        collectesOptimistes.remove(cleCollecte(niveau, id));
+        if (niveau != numeroNiveau || acceptee) return;
+        if (id >= 0 && id < ingredients.size()) {
+            Ingredient g = ingredients.get(id);
+            // Si un autre joueur l'a gagné, son compteur partagé sera confirmé au prochain poll.
+            g.definirActif(!dejaRamassee);
+            if (!dejaRamassee) inventaireRecette.retirer(g.getTypeIngredient());
+        }
+    }
+    public void appliquerIngredientsPartages(List<GestionBDD.EtatIngredient> etats,
+            java.util.Map<TypeIngredient,Integer> quantites) {
+        if (infosPartie == null || !infosPartie.estMultijoueur() || etats.isEmpty()) return;
+        java.util.Map<TypeIngredient,Integer> requises = new java.util.EnumMap<>(TypeIngredient.class);
+        for (GestionBDD.EtatIngredient e : etats) {
+            requises.put(e.type, requises.getOrDefault(e.type, 0) + 1);
+            if (e.id < 0 || e.id >= ingredients.size()) continue;
+            Ingredient ancien = ingredients.get(e.id);
+            TypeIngredient type = e.type;
+            if (ancien.getTypeIngredient() != type) {
+                ancien = new Ingredient(type, e.x, e.y);
+                ingredients.set(e.id, ancien);
+            } else {
+                ancien.definirPosition(e.x, e.y);
+            }
+            boolean optimiste = collectesOptimistes.contains(cleCollecte(numeroNiveau, e.id));
+            ancien.definirActif(!e.ramasse && !optimiste);
+        }
+        inventaireRecette.definirEtatPartage(requises, quantites);
+        mondeIngredientsPret = true;
+        recettePartageeComplete = inventaireRecette.estComplete();
+    }
     public java.util.Queue<String> getLeviersEnAttente() { return leviersEnAttente; }
     public java.util.Queue<String> getDegatsEnAttente() { return degatsEnAttente; }
     public List<Levier> getLeviers() { return carte.getLeviers(); }

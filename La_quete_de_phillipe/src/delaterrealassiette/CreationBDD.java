@@ -79,7 +79,7 @@ public class CreationBDD {
             // === MULTIJOUEUR === état partagé par salle et niveau, clés stables par ordre dans la carte.
             "CREATE TABLE IF NOT EXISTS ingredient_multi ("
             + "code_partie VARCHAR(40) NOT NULL,niveau INT NOT NULL,ingredient_id INT NOT NULL,x INT NOT NULL,y INT NOT NULL,"
-            + "type VARCHAR(40) NOT NULL,ramasse_par VARCHAR(15) NULL,PRIMARY KEY(code_partie,niveau,ingredient_id),"
+            + "type VARCHAR(40) NOT NULL,ramasse TINYINT(1) NOT NULL DEFAULT 0,ramasse_par VARCHAR(15) NULL,PRIMARY KEY(code_partie,niveau,ingredient_id),"
             + "FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             "CREATE TABLE IF NOT EXISTS monstre_multi ("
@@ -132,7 +132,9 @@ public class CreationBDD {
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS x INT NOT NULL DEFAULT 0",
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS y INT NOT NULL DEFAULT 0",
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS type VARCHAR(40) NOT NULL DEFAULT ''",
+            "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS ramasse TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS ramasse_par VARCHAR(15) NULL",
+            "UPDATE ingredient_multi SET ramasse=1 WHERE ramasse_par IS NOT NULL AND ramasse=0",
 
             "ALTER TABLE monstre_multi ADD COLUMN IF NOT EXISTS code_partie VARCHAR(40) NOT NULL DEFAULT ''",
             "ALTER TABLE monstre_multi ADD COLUMN IF NOT EXISTS niveau INT NOT NULL DEFAULT 0",
