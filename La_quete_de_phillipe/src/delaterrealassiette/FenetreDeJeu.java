@@ -29,6 +29,8 @@ import javax.swing.Timer;
  * [INFO] Quand le numéro de niveau change, un écran de transition
  *        s'affiche (EcranTransition) et le jeu est en pause pendant ce temps.
  * [INFO] Quand le joueur meurt, le son CHEMIN_SON_MORT est joué une fois.
+ * [INFO] Quand un niveau est terminé, le son CHEMIN_SON_NIVEAU est joué
+ *        (au début de la transition, et aussi après le dernier niveau).
  * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
  *              Jeu reçoit ce tableau dans miseAJour et dessine dans rendu.
  *              Son et EcranTransition gèrent le son et la transition.
@@ -40,6 +42,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     public static final int LARGEUR_JEU = 60 * 32; // 1920 px
     public static final int HAUTEUR_JEU = 33 * 32; // 1056 px
     public static final String CHEMIN_SON_MORT = "sons/mort.wav";
+    public static final String CHEMIN_SON_NIVEAU = "sons/niveau.wav";
 
     private static final String[] NOMS_BOUTONS = {
         "Haut (Z / flèche haut)",
@@ -73,6 +76,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     // Transition entre niveaux et son de mort
     private final EcranTransition ecranTransition = new EcranTransition();
     private final Son sonMort;
+    private final Son sonNiveau;
     private int niveauPrecedent;          // pour détecter un changement de niveau
     private boolean joueurEtaitMort = false; // pour jouer le son une seule fois
 
@@ -152,6 +156,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
 
         timer = new Timer(DUREE_TIC, this);
         sonMort = new Son(CHEMIN_SON_MORT);
+        sonNiveau = new Son(CHEMIN_SON_NIVEAU);
         niveauPrecedent = (jeu != null) ? jeu.getNumeroNiveau() : 0;
         // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
         addWindowListener(new java.awt.event.WindowAdapter() {
@@ -304,6 +309,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     public void arreter() {
         timer.stop();
         sonMort.fermer();
+        sonNiveau.fermer();
         // === MULTIJOUEUR ===
         if (synchronisationBDD != null) synchronisationBDD.arreter();
     }
@@ -334,6 +340,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                 }
             }
             if (jeu.isVictoire()) {
+                sonNiveau.jouer(); // dernier niveau terminé
                 timer.stop();
                 dessinerVictoire();
             } else {
@@ -380,6 +387,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         int niveauTermine = niveauPrecedent;
         niveauPrecedent = niveauActuel;
         ecranTransition.demarrer(niveauTermine, niveauActuel);
+        sonNiveau.jouer();
         return true;
     }
 
