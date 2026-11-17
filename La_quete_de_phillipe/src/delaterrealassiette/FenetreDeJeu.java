@@ -26,8 +26,12 @@ import javax.swing.Timer;
  * [INFO] L'image logique 1920x1056 est mise à l'échelle dans le panneau
  * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons
  *        et tourne à IMAGES_PAR_SECONDE_DEBUG images par seconde.
+ * [INFO] Quand le numéro de niveau change, un écran de transition
+ *        s'affiche (EcranTransition) et le jeu est en pause pendant ce temps.
+ * [INFO] Quand le joueur meurt, le son CHEMIN_SON_MORT est joué une fois.
  * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
  *              Jeu reçoit ce tableau dans miseAJour et dessine dans rendu.
+ *              Son et EcranTransition gèrent le son et la transition.
  * ________________________________________________________________ */
 public class FenetreDeJeu extends Fenetre implements ActionListener {
 
@@ -35,6 +39,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     public static final int IMAGES_PAR_SECONDE_DEBUG = 24; // mode debug
     public static final int LARGEUR_JEU = 60 * 32; // 1920 px
     public static final int HAUTEUR_JEU = 33 * 32; // 1056 px
+    public static final String CHEMIN_SON_MORT = "sons/mort.wav";
 
     private static final String[] NOMS_BOUTONS = {
         "Haut (Z / flèche haut)",
@@ -45,7 +50,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         "Cyril (2)",
         "Norbert (3)",
         "Compétence (E)",
-        "Sauter (Espace)"
+        "Sauter (Espace)",
+        "Chef 4 (4)"
     };
 
     private final Jeu jeu; // null en mode debug
@@ -63,6 +69,12 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
 
     private boolean[] etatBoutons = new boolean[ClavierSouris.NB_BOUTONS];
     private long numeroTic = 0;
+
+    // Transition entre niveaux et son de mort
+    private final EcranTransition ecranTransition = new EcranTransition();
+    private final Son sonMort;
+    private int niveauPrecedent;          // pour détecter un changement de niveau
+    private boolean joueurEtaitMort = false; // pour jouer le son une seule fois
 
     // Mesure des images par seconde (affichée en mode debug)
     private long debutBoucle;
@@ -139,10 +151,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         });
 
         timer = new Timer(DUREE_TIC, this);
-        // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
-        });
+        sonMort = new Son(CHEMIN_SON_MORT);
+        niveauPrecedent = (jeu != null) ? jeu.getNumeroNiveau() : 0;
         // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
@@ -293,6 +303,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ________________________________________________________________ */
     public void arreter() {
         timer.stop();
+        sonMort.fermer();
         // === MULTIJOUEUR ===
         if (synchronisationBDD != null) synchronisationBDD.arreter();
     }
@@ -307,9 +318,20 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         boolean clic = clavierSouris.isClicSouris();
         etatBoutons = clavierSouris.getEtatBoutons();
 
-        if (jeu != null) {
+        if (jeu != null && ecranTransition.estActive()) {
+            // Jeu en pause : on affiche seulement la transition
+            ecranTransition.avancer(etatBoutons[ClavierSouris.BOUTON_SAUTER]);
+            jeu.rendu(contexte);
+            ecranTransition.dessiner(contexte, LARGEUR_JEU, HAUTEUR_JEU);
+        } else if (jeu != null) {
             if (!jeu.isVictoire()) {
                 jeu.miseAJour(etatBoutons);
+                verifierMortDuJoueur();
+                if (verifierChangementDeNiveau()) {
+                    ecranTransition.dessiner(contexte, LARGEUR_JEU, HAUTEUR_JEU);
+                    ecran.repaint();
+                    return;
+                }
             }
             if (jeu.isVictoire()) {
                 timer.stop();
@@ -331,6 +353,34 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         }
 
         ecran.repaint();
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Joue le son de mort quand le joueur vient de mourir.
+     * [INFO] Le joueur reste mort pendant plusieurs tics avant de
+     *        réapparaître : le son n'est joué qu'au premier tic.
+     * ________________________________________________________________ */
+    private void verifierMortDuJoueur() {
+        boolean joueurMort = jeu.getJoueur().estMort();
+        if (joueurMort && !joueurEtaitMort) {
+            sonMort.jouer();
+        }
+        joueurEtaitMort = joueurMort;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Démarre l'écran de transition si le niveau a changé.
+     * [INFO] Retourne true si une transition vient de démarrer.
+     * ________________________________________________________________ */
+    private boolean verifierChangementDeNiveau() {
+        int niveauActuel = jeu.getNumeroNiveau();
+        if (niveauActuel == niveauPrecedent) {
+            return false;
+        }
+        int niveauTermine = niveauPrecedent;
+        niveauPrecedent = niveauActuel;
+        ecranTransition.demarrer(niveauTermine, niveauActuel);
+        return true;
     }
 
     /* ________________________________________________________________

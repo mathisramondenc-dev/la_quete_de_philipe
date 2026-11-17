@@ -9,10 +9,12 @@ import java.awt.event.MouseMotionListener;
 
 /* ________________________________________________________________
  * ACTION : Écoute le clavier et la souris et fournit, à chaque tic,
- *          l'état des 9 boutons du jeu sous forme de tableau de booléens.
+ *          l'état des 10 boutons du jeu sous forme de tableau de booléens.
  * [INFO] Les indices du tableau (BOUTON_...) sont les mêmes que ceux
  *        définis en haut de Joueur (toucheHaut = 0, ..., toucheSauter = 8),
  *        mais cette classe ne dépend pas de Joueur : on peut la tester seule.
+ * [INFO] BOUTON_CHEF4 (indice 9, touche 4) sert au 4e chef : Joueur doit
+ *        ajouter une constante touche... = 9 pour l'utiliser.
  * [INFO] Un bouton vaut true s'il est enfoncé au moment du tic OU s'il a
  *        été appuyé entre les deux tics (un appui très court n'est pas perdu).
  * [INFO] Si plusieurs touches de chef sont actives, seule la dernière
@@ -23,7 +25,7 @@ import java.awt.event.MouseMotionListener;
  * ________________________________________________________________ */
 public class ClavierSouris implements KeyListener, MouseListener, MouseMotionListener {
 
-    public static final int NB_BOUTONS = 9;
+    public static final int NB_BOUTONS = 10;
 
     // Indices des boutons dans le tableau (mêmes valeurs que dans Joueur)
     public static final int BOUTON_HAUT = 0;
@@ -35,6 +37,7 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
     public static final int BOUTON_NORBERT = 6;
     public static final int BOUTON_COMPETENCE = 7;
     public static final int BOUTON_SAUTER = 8;
+    public static final int BOUTON_CHEF4 = 9;
 
     private final boolean[] enfonce = new boolean[NB_BOUTONS];
     private final boolean[] appuyeDepuisDernierTic = new boolean[NB_BOUTONS];
@@ -74,6 +77,9 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
             case KeyEvent.VK_3:
             case KeyEvent.VK_NUMPAD3:
                 return BOUTON_NORBERT;
+            case KeyEvent.VK_4:
+            case KeyEvent.VK_NUMPAD4:
+                return BOUTON_CHEF4;
             case KeyEvent.VK_E:
                 return BOUTON_COMPETENCE;
             case KeyEvent.VK_SPACE:
@@ -89,11 +95,12 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
     private static boolean estToucheChef(int bouton) {
         return bouton == BOUTON_PHILIPPE
                 || bouton == BOUTON_CYRIL
-                || bouton == BOUTON_NORBERT;
+                || bouton == BOUTON_NORBERT
+                || bouton == BOUTON_CHEF4;
     }
 
     /* ________________________________________________________________
-     * ACTION : Retourne l'état des 9 boutons entre le tic précédent et
+     * ACTION : Retourne l'état des 10 boutons entre le tic précédent et
      *          maintenant, puis prépare le tic suivant.
      * [INFO] À appeler UNE seule fois par tic.
      * ________________________________________________________________ */
@@ -118,6 +125,7 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         etat[BOUTON_PHILIPPE] = false;
         etat[BOUTON_CYRIL] = false;
         etat[BOUTON_NORBERT] = false;
+        etat[BOUTON_CHEF4] = false;
 
         if (dernierChefActif) {
             etat[dernierChef] = true;
