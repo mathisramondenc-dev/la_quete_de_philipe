@@ -10,6 +10,10 @@ import java.awt.Graphics2D;
 public class Levier extends ObjetInteractif {
     private final int idMecanisme;
     private boolean estActive;
+    private int indexMulti = -1;
+    public int getIndexMulti() { return indexMulti; }
+    public void definirIndexMulti(int index) { indexMulti=index; }
+    // === MULTIJOUEUR === L’état est appliqué sur EDT par Jeu depuis l’instantané JDBC.
     private static final String cheminImageLevier = "images/levier.png";
 
     /* ________________________________________________________________

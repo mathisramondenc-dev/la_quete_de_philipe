@@ -66,21 +66,27 @@ public class CreationBDD {
             "CREATE TABLE IF NOT EXISTS joueur_multi ("
             + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "
             + "pseudo VARCHAR(15) NOT NULL, position_x INT NOT NULL DEFAULT 32, position_y INT NOT NULL DEFAULT 64, "
-            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', dernier_ping TIMESTAMP(3) NOT NULL, "
+            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', direction_gauche TINYINT(1) NOT NULL DEFAULT 0, "
+            + "en_mouvement TINYINT(1) NOT NULL DEFAULT 0, dernier_ping TIMESTAMP(3) NOT NULL, "
             + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
             + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
-            "CREATE TABLE IF NOT EXISTS partie_multi ("
-            + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
-            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            // === MULTIJOUEUR === état partagé par salle et niveau, clés stables par ordre dans la carte.
+            "CREATE TABLE IF NOT EXISTS ingredient_multi ("
+            + "code_partie VARCHAR(40) NOT NULL,niveau INT NOT NULL,ingredient_id INT NOT NULL,x INT NOT NULL,y INT NOT NULL,"
+            + "type VARCHAR(40) NOT NULL,ramasse_par VARCHAR(15) NULL,PRIMARY KEY(code_partie,niveau,ingredient_id),"
+            + "FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "CREATE TABLE IF NOT EXISTS joueur_multi ("
-            + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "
-            + "pseudo VARCHAR(15) NOT NULL, position_x INT NOT NULL DEFAULT 32, position_y INT NOT NULL DEFAULT 64, "
-            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', dernier_ping TIMESTAMP(3) NOT NULL, "
-            + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
-            + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
+            "CREATE TABLE IF NOT EXISTS monstre_multi ("
+            + "code_partie VARCHAR(40) NOT NULL,niveau INT NOT NULL,monstre_id INT NOT NULL,type VARCHAR(80) NOT NULL,"
+            + "x INT NOT NULL,y INT NOT NULL,pv INT NOT NULL DEFAULT 100,vivant TINYINT(1) NOT NULL DEFAULT 1,"
+            + "direction_gauche TINYINT(1) NOT NULL DEFAULT 0,degats_demandes INT NOT NULL DEFAULT 0,"
+            + "PRIMARY KEY(code_partie,niveau,monstre_id),FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS levier_multi ("
+            + "code_partie VARCHAR(40) NOT NULL,niveau INT NOT NULL,levier_id INT NOT NULL,id_mecanisme INT NOT NULL,"
+            + "actif TINYINT(1) NOT NULL DEFAULT 0,PRIMARY KEY(code_partie,niveau,levier_id),"
+            + "FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             "CREATE TABLE IF NOT EXISTS tuile ("
             + "carte_id INT NOT NULL, indice_ligne INT NOT NULL, indice_colonne INT NOT NULL, numero_tuile INT NOT NULL, "

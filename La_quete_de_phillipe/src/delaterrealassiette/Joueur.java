@@ -246,6 +246,13 @@ public class Joueur extends Entite {
     public String getNomAvatarActuel() {
         return avatarActuel.getNom();
     }
+    // === MULTIJOUEUR === Hook d’attaque pour un futur contrôle de combat; l’API de Jeu publie en BDD.
+    public void demanderDegatsMonstre(Jeu jeu, int indexMonstre, int degats) {
+        if (jeu != null && degats > 0) jeu.demanderDegatsMonstre(indexMonstre, degats);
+    }
+
+    // === MULTIJOUEUR === état d'animation minimal publié (sprites disponibles statiques).
+    public boolean estEnMouvement() { return allerGauche || allerDroite; }
 
     /* ________________________________________________________________
      * ACTION : Retourne le pseudo du joueur.

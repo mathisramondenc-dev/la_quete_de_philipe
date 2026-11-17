@@ -27,6 +27,12 @@ public class Jeu {
     private boolean victoire;
     private static final int nombreTicsAvantReapparition = 30;
     private int ticsAvantReapparition;
+    // === MULTIJOUEUR === Configuration de session et file de collectes à publier.
+    private InfosPartie infosPartie;
+    private final java.util.concurrent.ConcurrentLinkedQueue<Integer> collectesEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.concurrent.ConcurrentLinkedQueue<String> leviersEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.concurrent.ConcurrentLinkedQueue<String> degatsEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
 
     /* ________________________________________________________________
      * ACTION : Charge un niveau choisi et initialise sa recette.
@@ -53,14 +59,19 @@ public class Jeu {
         joueur.definirPosition(positionDepart[0], positionDepart[1]);
         entites = new ArrayList<>();
         entites.add(joueur);
+        int indexMonstre = 0;
         for (Map.PositionMonstre positionMonstre : carte.getPositionsMonstres()) {
             if ("RAT".equals(positionMonstre.getType())) {
-                entites.add(Monstre.creerRat(carte, positionMonstre.getPositionX(),
-                        positionMonstre.getPositionY()));
+                Monstre monstre = Monstre.creerRat(carte, positionMonstre.getPositionX(), positionMonstre.getPositionY());
+                monstre.definirIndexMulti(indexMonstre++);
+                monstre.definirAutoriteIA(infosPartie == null || !infosPartie.estMultijoueur() || infosPartie.estHebergeur());
+                entites.add(monstre);
             }
         }
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
+        int indexLevier=0;
+        for (Levier levier:carte.getLeviers()) levier.definirIndexMulti(indexLevier++);
     }
 
     /* ________________________________________________________________
@@ -100,6 +111,8 @@ public class Jeu {
             for (Levier levier : carte.getLeviers()) {
                 if (levier.estAProximite(joueur)) {
                     levier.basculer();
+                    // === MULTIJOUEUR === file l’état demandé, publié par le thread JDBC.
+                    if (infosPartie != null && infosPartie.estMultijoueur()) leviersEnAttente.add(levier.getIndexMulti()+":"+levier.isActive());
                     break;
                 }
             }
@@ -107,6 +120,7 @@ public class Jeu {
         carte.mettreAJourMecanismes(entites);
         carte.miseAJour();
         for (Entite entite : entites) {
+            if (entite instanceof Monstre && infosPartie != null && infosPartie.estMultijoueur() && !infosPartie.estHebergeur()) continue;
             entite.mettreAJour();
         }
         for (Entite entite : entites) {
@@ -130,6 +144,8 @@ public class Jeu {
                         && ingredient.enCollisionAvec(entite)) {
                     ingredient.interagir((Joueur) entite);
                     inventaireRecette.ajouter(ingredient.getTypeIngredient());
+                    // === MULTIJOUEUR === Chaque inventaire reste individuel; la collecte est publiée par index.
+                    if (infosPartie != null && infosPartie.estMultijoueur()) collectesEnAttente.add(ingredients.indexOf(ingredient));
                     break;
                 }
             }
@@ -240,6 +256,35 @@ public class Jeu {
     /* ________________________________________________________________
      * ACTION : Retourne la carte du niveau actif.
      * ________________________________________________________________ */
+    // === MULTIJOUEUR === Appelé par FenetreDeJeu avant de démarrer la synchronisation.
+    public void configurerMultijoueur(InfosPartie infos) {
+        infosPartie = infos;
+        for (Entite entite : entites) if (entite instanceof Monstre)
+            ((Monstre) entite).definirAutoriteIA(!infos.estMultijoueur() || infos.estHebergeur());
+    }
+    public InfosPartie getInfosPartie() { return infosPartie; }
+    public java.util.Queue<Integer> getCollectesEnAttente() { return collectesEnAttente; }
+    public java.util.Queue<String> getLeviersEnAttente() { return leviersEnAttente; }
+    public java.util.Queue<String> getDegatsEnAttente() { return degatsEnAttente; }
+    public List<Levier> getLeviers() { return carte.getLeviers(); }
+    public void appliquerLeviersDistants(java.util.Map<Integer,Boolean> etats) {
+        for (Levier l:carte.getLeviers()) if(etats.containsKey(l.getIndexMulti())) l.definirActif(etats.get(l.getIndexMulti()));
+    }
+    public List<Entite> getEntites() { return Collections.unmodifiableList(entites); }
+    public void appliquerCollectesDistantes(List<Integer> indices) {
+        for (Integer i : indices) { carte.retirerIngredient(i); if (i >= 0 && i < ingredients.size()) ingredients.get(i).definirActif(false); }
+    }
+    public void appliquerMonstres(List<GestionBDD.EtatMonstre> etats) {
+        for (Entite entite : entites) if (entite instanceof Monstre) {
+            Monstre m=(Monstre)entite;
+            for (GestionBDD.EtatMonstre e:etats) if(e.id==m.getIndexMulti()) m.appliquerEtatDistant(e.x,e.y,e.pv,e.vivant,e.gauche);
+        }
+    }
+    /** API à appeler depuis un système d'attaque; aucune attaque joueur n'existe actuellement. */
+    public void demanderDegatsMonstre(int index, int degats) {
+        if (infosPartie != null && infosPartie.estMultijoueur() && degats > 0) degatsEnAttente.add(index+":"+degats);
+    }
+
     public Map getCarte() {
         return carte;
     }

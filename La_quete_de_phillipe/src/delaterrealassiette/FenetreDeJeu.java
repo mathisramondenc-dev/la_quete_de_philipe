@@ -88,6 +88,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         super();
         this.jeu = jeu;
         this.infosPartie = infosPartie;
+        if (jeu != null && infosPartie != null) jeu.configurerMultijoueur(infosPartie);
         this.synchronisationBDD = (jeu != null && infosPartie != null && infosPartie.getSessionId() != null)
                 ? new SynchronisationBDD(jeu, infosPartie) : null;
         if (infosPartie != null) {
@@ -139,10 +140,6 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         });
 
         timer = new Timer(DUREE_TIC, this);
-        // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
-        addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
-        });
         // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
