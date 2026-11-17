@@ -11,19 +11,6 @@ public class Monstre extends Entite {
     private final int vitesse;
     private final int degats;
     private int delaiAvantDegats;
-    private int indexMulti = -1;
-    private int pointsDeVie = 100;
-    private boolean vivant = true;
-    private boolean autoriteIA = true;
-    public int getIndexMulti() { return indexMulti; }
-    public void definirIndexMulti(int index) { indexMulti=index; }
-    public void definirAutoriteIA(boolean autorite) { autoriteIA=autorite; }
-    public int getPointsDeVie() { return pointsDeVie; }
-    public boolean estVivant() { return vivant; }
-    public void appliquerEtatDistant(int x,int y,int pv,boolean actif,boolean gauche) {
-        definirPosition(x,y); pointsDeVie=Math.max(0,pv); vivant=actif && pv>0; definirActif(vivant); definirOrientationGauche(gauche);
-    }
-    public void appliquerDegats(int degats) { pointsDeVie=Math.max(0,pointsDeVie-degats); vivant=pointsDeVie>0; definirActif(vivant); }
 
     /* ________________________________________________________________
      * ACTION : Initialise un monstre à une position donnée.
@@ -75,8 +62,6 @@ public class Monstre extends Entite {
      * ________________________________________________________________ */
     @Override
     public void mettreAJour() {
-        // === MULTIJOUEUR === Les clients reçoivent des instantanés; seul l’hébergeur simule la patrouille.
-        if (!autoriteIA || !vivant) return;
         int direction = isRegardeVersLaGauche() ? -1 : 1;
         boolean estAuSol = map.collisionHitbox(
                 positionX, positionY - 1, hitbox[0], hitbox[1]) && vitesseY <= 0;

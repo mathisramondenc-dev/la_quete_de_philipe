@@ -22,21 +22,18 @@ public class InfosPartie {
     private final String motDePasse;
     // === MULTIJOUEUR === Identifiant opaque propre à cette instance de jeu.
     private final String sessionId;
-    // === MULTIJOUEUR === seul l’hébergeur simule l’IA.
-    private final boolean hebergeur;
 
     /* ________________________________________________________________
      * ACTION : Crée les informations de connexion d'un joueur.
      * [INFO] Les champs doivent avoir été vérifiés avant (verifier...).
      * ________________________________________________________________ */
     public InfosPartie(String pseudo, String identifiantPartie, String motDePasse) {
-        this(pseudo, identifiantPartie, motDePasse, null, false);
+        this(pseudo, identifiantPartie, motDePasse, null);
     }
 
     // === MULTIJOUEUR ===
-    public InfosPartie(String pseudo, String identifiantPartie, String motDePasse, String sessionId) { this(pseudo,identifiantPartie,motDePasse,sessionId,false); }
-    public InfosPartie(String pseudo, String identifiantPartie, String motDePasse, String sessionId, boolean hebergeur) {
-        this.hebergeur=hebergeur; this.pseudo = pseudo;
+    public InfosPartie(String pseudo, String identifiantPartie, String motDePasse, String sessionId) {
+        this.pseudo = pseudo;
         this.identifiantPartie = identifiantPartie;
         this.motDePasse = motDePasse;
         this.sessionId = sessionId;
@@ -112,8 +109,6 @@ public class InfosPartie {
 
     // === MULTIJOUEUR ===
     public String getSessionId() { return sessionId; }
-    public boolean estHebergeur(){return hebergeur;}
-    public boolean estMultijoueur(){return sessionId != null && !sessionId.isEmpty();}
 
     @Override
     public String toString() {

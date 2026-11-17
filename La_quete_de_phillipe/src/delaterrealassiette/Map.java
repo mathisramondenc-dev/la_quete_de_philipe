@@ -317,11 +317,6 @@ public class Map {
         return Collections.unmodifiableList(ingredients);
     }
 
-    // === MULTIJOUEUR === Suppression par index stable après lecture BDD.
-    public void retirerIngredient(int index) {
-        if (index >= 0 && index < ingredients.size()) ingredients.get(index).definirActif(false);
-    }
-
     /* ________________________________________________________________
      * ACTION : Retourne la largeur en nombre de tuiles.
      * ________________________________________________________________ */

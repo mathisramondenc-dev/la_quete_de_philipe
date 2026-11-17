@@ -27,24 +27,6 @@ public class Jeu {
     private boolean victoire;
     private static final int nombreTicsAvantReapparition = 30;
     private int ticsAvantReapparition;
-    // === MULTIJOUEUR === Configuration de session et file de collectes à publier.
-    private InfosPartie infosPartie;
-    private final java.util.concurrent.ConcurrentLinkedQueue<DemandeCollecte> collectesEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
-    private final java.util.Set<String> collectesOptimistes = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private final java.util.Set<String> collectesLocalesConfirmees = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private final java.util.Set<String> collectesPartageesConfirmees = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private volatile boolean recettePartageeComplete;
-    private volatile boolean mondeIngredientsPret;
-
-    static final class DemandeCollecte {
-        final int niveau, id;
-        final TypeIngredient type;
-        DemandeCollecte(int niveau, int id, TypeIngredient type) { this.niveau=niveau; this.id=id; this.type=type; }
-    }
-
-    private final java.util.concurrent.ConcurrentLinkedQueue<String> leviersEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
-    private final java.util.concurrent.ConcurrentLinkedQueue<String> degatsEnAttente = new java.util.concurrent.ConcurrentLinkedQueue<>();
-
 
     /* ________________________________________________________________
      * ACTION : Charge un niveau choisi et initialise sa recette.
@@ -71,21 +53,14 @@ public class Jeu {
         joueur.definirPosition(positionDepart[0], positionDepart[1]);
         entites = new ArrayList<>();
         entites.add(joueur);
-        int indexMonstre = 0;
         for (Map.PositionMonstre positionMonstre : carte.getPositionsMonstres()) {
             if ("RAT".equals(positionMonstre.getType())) {
-                Monstre monstre = Monstre.creerRat(carte, positionMonstre.getPositionX(), positionMonstre.getPositionY());
-                monstre.definirIndexMulti(indexMonstre++);
-                monstre.definirAutoriteIA(infosPartie == null || !infosPartie.estMultijoueur() || infosPartie.estHebergeur());
-                entites.add(monstre);
+                entites.add(Monstre.creerRat(carte, positionMonstre.getPositionX(),
+                        positionMonstre.getPositionY()));
             }
         }
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
-        recettePartageeComplete = false;
-        mondeIngredientsPret = infosPartie == null || !infosPartie.estMultijoueur();
-        int indexLevier=0;
-        for (Levier levier:carte.getLeviers()) levier.definirIndexMulti(indexLevier++);
     }
 
     /* ________________________________________________________________
@@ -125,8 +100,6 @@ public class Jeu {
             for (Levier levier : carte.getLeviers()) {
                 if (levier.estAProximite(joueur)) {
                     levier.basculer();
-                    // === MULTIJOUEUR === file l’état demandé, publié par le thread JDBC.
-                    if (infosPartie != null && infosPartie.estMultijoueur()) leviersEnAttente.add(levier.getIndexMulti()+":"+levier.isActive());
                     break;
                 }
             }
@@ -134,7 +107,6 @@ public class Jeu {
         carte.mettreAJourMecanismes(entites);
         carte.miseAJour();
         for (Entite entite : entites) {
-            if (entite instanceof Monstre && infosPartie != null && infosPartie.estMultijoueur() && !infosPartie.estHebergeur()) continue;
             entite.mettreAJour();
         }
         for (Entite entite : entites) {
@@ -149,7 +121,6 @@ public class Jeu {
             ticsAvantReapparition = nombreTicsAvantReapparition;
             return;
         }
-        if (!mondeIngredientsPret) return;
         for (Ingredient ingredient : ingredients) {
             if (!ingredient.isActif()) {
                 continue;
@@ -159,17 +130,11 @@ public class Jeu {
                         && ingredient.enCollisionAvec(entite)) {
                     ingredient.interagir((Joueur) entite);
                     inventaireRecette.ajouter(ingredient.getTypeIngredient());
-                    if (infosPartie != null && infosPartie.estMultijoueur()) {
-                        int id = ingredients.indexOf(ingredient);
-                        collectesOptimistes.add(cleCollecte(numeroNiveau, id));
-                        collectesEnAttente.add(new DemandeCollecte(numeroNiveau, id, ingredient.getTypeIngredient()));
-                    }
                     break;
                 }
             }
         }
-        if (inventaireRecette.estComplete()
-                && (infosPartie == null || !infosPartie.estMultijoueur() || recettePartageeComplete)) {
+        if (inventaireRecette.estComplete()) {
             passerAuNiveauSuivant();
         }
     }
@@ -275,96 +240,6 @@ public class Jeu {
     /* ________________________________________________________________
      * ACTION : Retourne la carte du niveau actif.
      * ________________________________________________________________ */
-    // === MULTIJOUEUR === Appelé par FenetreDeJeu avant de démarrer la synchronisation.
-    public void configurerMultijoueur(InfosPartie infos) {
-        infosPartie = infos;
-        for (Entite entite : entites) if (entite instanceof Monstre)
-            ((Monstre) entite).definirAutoriteIA(!infos.estMultijoueur() || infos.estHebergeur());
-    }
-    public InfosPartie getInfosPartie() { return infosPartie; }
-    public java.util.Queue<DemandeCollecte> getCollectesEnAttente() { return collectesEnAttente; }
-    private static String cleCollecte(int niveau, int id) { return niveau + ":" + id; }
-    public void resultatCollecte(int niveau, int id, boolean acceptee, boolean refuseeParAutre) {
-        String cle = cleCollecte(niveau, id);
-        if (acceptee) {
-            collectesOptimistes.remove(cle);
-            collectesLocalesConfirmees.add(cle);
-        } else if (refuseeParAutre) {
-            // La BDD a explicitement confirmé que l'ingrédient appartient à un autre joueur.
-            collectesOptimistes.remove(cle);
-            collectesLocalesConfirmees.remove(cle);
-            collectesPartageesConfirmees.add(cle);
-        } else {
-            return; // Aucun refus définitif : conserver l'état optimiste.
-        }
-        if (niveau == numeroNiveau && id >= 0 && id < ingredients.size()) {
-            recalculerInventairePartage();
-            Ingredient g = ingredients.get(id);
-            g.definirActif(!(collectesOptimistes.contains(cle) || collectesLocalesConfirmees.contains(cle)
-                    || collectesPartageesConfirmees.contains(cle)));
-        }
-    }
-    public void appliquerIngredientsPartages(List<GestionBDD.EtatIngredient> etats,
-            java.util.Map<TypeIngredient,Integer> quantites) {
-        if (infosPartie == null || !infosPartie.estMultijoueur() || etats.isEmpty()) return;
-        java.util.Map<TypeIngredient,Integer> requises = new java.util.EnumMap<>(TypeIngredient.class);
-        for (GestionBDD.EtatIngredient e : etats) {
-            requises.put(e.type, requises.getOrDefault(e.type, 0) + 1);
-            if (e.ramasse) collectesPartageesConfirmees.add(cleCollecte(numeroNiveau, e.id));
-            if (e.id < 0 || e.id >= ingredients.size()) continue;
-            Ingredient ancien = ingredients.get(e.id);
-            TypeIngredient type = e.type;
-            if (ancien.getTypeIngredient() != type) {
-                ancien = new Ingredient(type, e.x, e.y);
-                ingredients.set(e.id, ancien);
-            } else {
-                ancien.definirPosition(e.x, e.y);
-            }
-            String cle = cleCollecte(numeroNiveau, e.id);
-            boolean dejaConfirme = e.ramasse || collectesPartageesConfirmees.contains(cle)
-                    || collectesLocalesConfirmees.contains(cle);
-            ancien.definirActif(!(dejaConfirme || collectesOptimistes.contains(cle)));
-        }
-        inventaireRecette.definirEtatPartage(requises, quantites);
-        recalculerInventairePartage();
-        mondeIngredientsPret = true;
-        recettePartageeComplete = inventaireRecette.estComplete();
-    }
-    private void recalculerInventairePartage() {
-        java.util.Map<TypeIngredient,Integer> requises = inventaireRecette.getQuantitesRequises();
-        java.util.Map<TypeIngredient,Integer> ramassees = new java.util.EnumMap<>(TypeIngredient.class);
-        for (int id = 0; id < ingredients.size(); id++) {
-            String cle = cleCollecte(numeroNiveau, id);
-            if (collectesOptimistes.contains(cle) || collectesLocalesConfirmees.contains(cle)
-                    || collectesPartageesConfirmees.contains(cle)) {
-                TypeIngredient type = ingredients.get(id).getTypeIngredient();
-                ramassees.put(type, ramassees.getOrDefault(type, 0) + 1);
-            }
-        }
-        inventaireRecette.definirEtatPartage(requises, ramassees);
-        recettePartageeComplete = inventaireRecette.estComplete();
-    }
-    public java.util.Queue<String> getLeviersEnAttente() { return leviersEnAttente; }
-    public java.util.Queue<String> getDegatsEnAttente() { return degatsEnAttente; }
-    public List<Levier> getLeviers() { return carte.getLeviers(); }
-    public void appliquerLeviersDistants(java.util.Map<Integer,Boolean> etats) {
-        for (Levier l:carte.getLeviers()) if(etats.containsKey(l.getIndexMulti())) l.definirActif(etats.get(l.getIndexMulti()));
-    }
-    public List<Entite> getEntites() { return Collections.unmodifiableList(entites); }
-    public void appliquerCollectesDistantes(List<Integer> indices) {
-        for (Integer i : indices) { carte.retirerIngredient(i); if (i >= 0 && i < ingredients.size()) ingredients.get(i).definirActif(false); }
-    }
-    public void appliquerMonstres(List<GestionBDD.EtatMonstre> etats) {
-        for (Entite entite : entites) if (entite instanceof Monstre) {
-            Monstre m=(Monstre)entite;
-            for (GestionBDD.EtatMonstre e:etats) if(e.id==m.getIndexMulti()) m.appliquerEtatDistant(e.x,e.y,e.pv,e.vivant,e.gauche);
-        }
-    }
-    /** API à appeler depuis un système d'attaque; aucune attaque joueur n'existe actuellement. */
-    public void demanderDegatsMonstre(int index, int degats) {
-        if (infosPartie != null && infosPartie.estMultijoueur() && degats > 0) degatsEnAttente.add(index+":"+degats);
-    }
-
     public Map getCarte() {
         return carte;
     }

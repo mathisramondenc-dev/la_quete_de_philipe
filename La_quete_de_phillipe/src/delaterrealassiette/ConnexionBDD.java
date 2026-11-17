@@ -16,10 +16,7 @@ public final class ConnexionBDD {
         return v == null || v.isEmpty() ? defaut : v;
     }
 
-    /** Ouvre une connexion à usage exclusif; le demandeur la ferme avec try-with-resources.
-     * La synchronisation conserve l’objet Connection retourné pour toute sa durée; les appels ponctuels
-     * continuent à ouvrir et fermer leur propre connexion.
-     */
+    /** Ouvre une connexion à usage exclusif; le demandeur la ferme avec try-with-resources. */
     public Connection getConnection() throws SQLException {
         String h = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
         String p = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
