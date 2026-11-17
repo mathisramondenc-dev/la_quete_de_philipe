@@ -269,32 +269,34 @@ public class GestionBDD {
     /** Publie les événements en lot à chaque cycle de 100 ms, sans attendre le polling du monde. */
     private static void publierEvenements(Connection c, InfosPartie i, Jeu jeu) throws SQLException {
         String code=i.getIdentifiantPartie(); int niv=jeu.getNumeroNiveau();
-        Jeu.DemandeCollecte demande;
-        while ((demande=jeu.getCollectesEnAttente().poll())!=null) {
+        Jeu.DemandeCollecte collecteEnCours;
+        while ((collecteEnCours=jeu.getCollectesEnAttente().poll())!=null) {
+            final int niveauCollecte=collecteEnCours.niveau;
+            final int idCollecte=collecteEnCours.id;
             String sql="UPDATE ingredient_multi SET ramasse=1,ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse=0";
             boolean accepte=false, dejaRamassee=false;
             try {
                 try(PreparedStatement p=c.prepareStatement(sql)) {
-                    p.setString(1,i.getPseudo()); p.setString(2,code); p.setInt(3,demande.niveau); p.setInt(4,demande.id);
+                    p.setString(1,i.getPseudo()); p.setString(2,code); p.setInt(3,niveauCollecte); p.setInt(4,idCollecte);
                     accepte=p.executeUpdate()==1;
                 }
                 if (!accepte) {
                     try(PreparedStatement p=c.prepareStatement("SELECT ramasse FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ingredient_id=?")) {
-                        p.setString(1,code); p.setInt(2,demande.niveau); p.setInt(3,demande.id);
+                        p.setString(1,code); p.setInt(2,niveauCollecte); p.setInt(3,idCollecte);
                         try(ResultSet r=p.executeQuery()) { dejaRamassee=r.next() && r.getBoolean(1); }
                     }
                 }
             } catch (SQLException e) {
-                jeu.getCollectesEnAttente().add(demande);
+                jeu.getCollectesEnAttente().add(collecteEnCours);
                 throw e;
             }
             final boolean succes=accepte, consomme=dejaRamassee;
-            javax.swing.SwingUtilities.invokeLater(()->jeu.resultatCollecte(demande.niveau,demande.id,succes,consomme));
+            javax.swing.SwingUtilities.invokeLater(()->jeu.resultatCollecte(niveauCollecte,idCollecte,succes,consomme));
         }
         String deg="UPDATE monstre_multi SET vivant=IF(pv-?>0,1,0),pv=GREATEST(0,pv-?) WHERE code_partie=? AND niveau=? AND monstre_id=?";
-        try(PreparedStatement p=c.prepareStatement(deg)){String demande;while((demande=jeu.getDegatsEnAttente().poll())!=null){String[] v=demande.split(":");int valeur=Integer.parseInt(v[1]);p.setInt(1,valeur);p.setInt(2,valeur);p.setString(3,code);p.setInt(4,niv);p.setInt(5,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
+        try(PreparedStatement p=c.prepareStatement(deg)){String evenementDegats;while((evenementDegats=jeu.getDegatsEnAttente().poll())!=null){String[] v=evenementDegats.split(":");int valeur=Integer.parseInt(v[1]);p.setInt(1,valeur);p.setInt(2,valeur);p.setString(3,code);p.setInt(4,niv);p.setInt(5,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
         String lev="UPDATE levier_multi SET actif=? WHERE code_partie=? AND niveau=? AND levier_id=? AND actif<>?";
-        try(PreparedStatement p=c.prepareStatement(lev)){String demande;while((demande=jeu.getLeviersEnAttente().poll())!=null){String[] v=demande.split(":");p.setBoolean(1,Boolean.parseBoolean(v[1]));p.setString(2,code);p.setInt(3,niv);p.setInt(4,Integer.parseInt(v[0]));p.setBoolean(5,Boolean.parseBoolean(v[1]));p.addBatch();}p.executeBatch();}
+        try(PreparedStatement p=c.prepareStatement(lev)){String evenementLevier;while((evenementLevier=jeu.getLeviersEnAttente().poll())!=null){String[] v=evenementLevier.split(":");p.setBoolean(1,Boolean.parseBoolean(v[1]));p.setString(2,code);p.setInt(3,niv);p.setInt(4,Integer.parseInt(v[0]));p.setBoolean(5,Boolean.parseBoolean(v[1]));p.addBatch();}p.executeBatch();}
     }
 
     private static void synchroniserMonde(Connection c,InfosPartie i,Jeu jeu) throws SQLException {
