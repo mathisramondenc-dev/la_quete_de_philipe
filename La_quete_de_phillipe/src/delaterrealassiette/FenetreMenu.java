@@ -42,8 +42,17 @@ public class FenetreMenu extends Fenetre {
         // Ligne 1 : multijoueur
         placement.gridy = 0;
         placement.insets = new Insets(0, 15, 25, 15);
-        centre.add(creerBouton("Se connecter à une partie", 420, 70, 24,
-                e -> ouvrir(new FenetreConnexion())), placement);
+        // === MULTIJOUEUR === Hébergement et entrée dans une partie via MariaDB.
+        JPanel multijoueur = new JPanel(new GridBagLayout());
+        multijoueur.setOpaque(false);
+        GridBagConstraints cMulti = new GridBagConstraints();
+        cMulti.insets = new Insets(0, 8, 0, 8);
+        multijoueur.add(creerBouton("Héberger", 200, 60, 20,
+                e -> ouvrir(new FenetreHeberger())), cMulti);
+        cMulti.gridx = 1;
+        multijoueur.add(creerBouton("Rejoindre", 200, 60, 20,
+                e -> ouvrir(new FenetreRejoindre())), cMulti);
+        centre.add(multijoueur, placement);
 
         // Ligne 2 : tests rapides (sans multijoueur)
         JPanel tests = new JPanel(new GridBagLayout());

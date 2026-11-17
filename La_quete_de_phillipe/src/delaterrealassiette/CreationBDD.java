@@ -14,6 +14,7 @@ public class CreationBDD {
     }
 
     public static void main(String[] args) {
+        // === MULTIJOUEUR === La configuration JDBC est partagée avec les clients.
         String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
         String port = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
         String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "etudiant");
@@ -56,6 +57,30 @@ public class CreationBDD {
             + "position_x INT NOT NULL DEFAULT 0, position_y INT NOT NULL DEFAULT 0, vitesse INT NOT NULL, "
             + "degats INT NOT NULL, hitbox_largeur INT NOT NULL, hitbox_hauteur INT NOT NULL, "
             + "chemin_image VARCHAR(255) NOT NULL"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
+            "CREATE TABLE IF NOT EXISTS partie_multi ("
+            + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
+            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS joueur_multi ("
+            + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "
+            + "pseudo VARCHAR(15) NOT NULL, position_x INT NOT NULL DEFAULT 32, position_y INT NOT NULL DEFAULT 64, "
+            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', dernier_ping TIMESTAMP(3) NOT NULL, "
+            + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
+            + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
+            "CREATE TABLE IF NOT EXISTS partie_multi ("
+            + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
+            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+            "CREATE TABLE IF NOT EXISTS joueur_multi ("
+            + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "
+            + "pseudo VARCHAR(15) NOT NULL, position_x INT NOT NULL DEFAULT 32, position_y INT NOT NULL DEFAULT 64, "
+            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', dernier_ping TIMESTAMP(3) NOT NULL, "
+            + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
+            + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             "CREATE TABLE IF NOT EXISTS tuile ("
             + "carte_id INT NOT NULL, indice_ligne INT NOT NULL, indice_colonne INT NOT NULL, numero_tuile INT NOT NULL, "

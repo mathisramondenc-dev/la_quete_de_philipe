@@ -1,5 +1,11 @@
 package delaterrealassiette;
 
+import java.awt.Graphics2D;
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -8,6 +14,7 @@ import java.sql.SQLException;
 
 /** Accès JDBC MariaDB et synchronisation facultative des objets du jeu. */
 public class GestionBDD {
+    // === MULTIJOUEUR === La gestion historique des tuiles et joueurs est conservée.
     private static final int ID_CARTE = 1;
     private Connection connexion;
     private Joueur joueur;
@@ -191,6 +198,84 @@ public class GestionBDD {
                 }
             }
             requete.executeBatch();
+        }
+    }
+    // === MULTIJOUEUR === Création d'une partie et inscription atomique du premier joueur.
+    public static InfosPartie heberger(String pseudo, String code, String motDePasse) throws SQLException {
+        String id = UUID.randomUUID().toString();
+        try (Connection c = ConnexionBDD.getInstance().getConnection()) {
+            c.setAutoCommit(false);
+            try (PreparedStatement p = c.prepareStatement("INSERT INTO partie_multi(code_partie,mot_de_passe) VALUES (?,?)")) {
+                p.setString(1, code); p.setString(2, motDePasse); p.executeUpdate();
+            }
+            inscrire(c, id, code, pseudo);
+            c.commit();
+            return new InfosPartie(pseudo, code, motDePasse, id);
+        } catch (SQLException e) { throw e; }
+    }
+
+    // === MULTIJOUEUR === Vérifie la partie et son mot de passe avant l'inscription.
+    public static InfosPartie rejoindre(String pseudo, String code, String motDePasse) throws SQLException {
+        String id = UUID.randomUUID().toString();
+        try (Connection c = ConnexionBDD.getInstance().getConnection()) {
+            try (PreparedStatement p = c.prepareStatement("SELECT code_partie FROM partie_multi WHERE code_partie=? AND mot_de_passe=?")) {
+                p.setString(1, code); p.setString(2, motDePasse);
+                try (ResultSet r = p.executeQuery()) { if (!r.next()) throw new SQLException("Partie introuvable ou mot de passe incorrect."); }
+            }
+            inscrire(c, id, code, pseudo);
+        }
+        return new InfosPartie(pseudo, code, motDePasse, id);
+    }
+
+    private static void inscrire(Connection c, String id, String code, String pseudo) throws SQLException {
+        String sql = "INSERT INTO joueur_multi(session_id,code_partie,pseudo,position_x,position_y,avatar_actuel,dernier_ping) VALUES (?,?,?,32,64,'Etchebest',CURRENT_TIMESTAMP(3))";
+        try (PreparedStatement p = c.prepareStatement(sql)) { p.setString(1,id); p.setString(2,code); p.setString(3,pseudo); p.executeUpdate(); }
+    }
+
+    // === MULTIJOUEUR === Liste des participants en ligne destinée aux fenêtres de sélection.
+    public static List<String> listerJoueurs(String code) throws SQLException {
+        List<String> resultat = new ArrayList<>();
+        String sql = "SELECT pseudo FROM joueur_multi WHERE code_partie=? AND dernier_ping >= CURRENT_TIMESTAMP(3) - INTERVAL 15 SECOND ORDER BY pseudo";
+        try (Connection c=ConnexionBDD.getInstance().getConnection(); PreparedStatement p=c.prepareStatement(sql)) {
+            p.setString(1,code); try(ResultSet r=p.executeQuery()){ while(r.next()) resultat.add(r.getString(1)); }
+        }
+        return Collections.unmodifiableList(resultat);
+    }
+
+    // === MULTIJOUEUR === Chaque instance du jeu possède un thread JDBC dédié.
+    static void synchroniser(Connection c, InfosPartie infos, Jeu jeu, List<JoueurDistant> distants) throws SQLException {
+        Joueur j=jeu.getJoueur();
+        String upd="UPDATE joueur_multi SET position_x=?,position_y=?,avatar_actuel=?,dernier_ping=CURRENT_TIMESTAMP(3) WHERE session_id=?";
+        try(PreparedStatement p=c.prepareStatement(upd)) {
+            p.setInt(1,j.getPositionX()); p.setInt(2,j.getPositionY()); p.setString(3,j.getNomAvatarActuel()); p.setString(4,infos.getSessionId());
+            if(p.executeUpdate()==0) throw new SQLException("Session multijoueur expirée.");
+        }
+        List<JoueurDistant> nouveau=new ArrayList<>();
+        String sel="SELECT pseudo,avatar_actuel,position_x,position_y FROM joueur_multi WHERE code_partie=? AND session_id<>? AND dernier_ping >= CURRENT_TIMESTAMP(3) - INTERVAL 15 SECOND";
+        try(PreparedStatement p=c.prepareStatement(sel)) {
+            p.setString(1,infos.getIdentifiantPartie()); p.setString(2,infos.getSessionId());
+            try(ResultSet r=p.executeQuery()){while(r.next()) nouveau.add(new JoueurDistant(r.getString(1),r.getString(2),r.getInt(3),r.getInt(4)));}
+        }
+        synchronized(distants){distants.clear();distants.addAll(nouveau);}
+    }
+
+    // === MULTIJOUEUR === Retrait du seul jeton de session, sans effacer les autres.
+    static void quitter(InfosPartie infos) {
+        if(infos==null || infos.getSessionId()==null) return;
+        try(Connection c=ConnexionBDD.getInstance().getConnection(); PreparedStatement p=c.prepareStatement("DELETE FROM joueur_multi WHERE session_id=?")) {
+            p.setString(1,infos.getSessionId()); p.executeUpdate();
+        } catch(SQLException e) { System.err.println("Déconnexion BDD différée; expiration automatique active: "+e.getMessage()); }
+    }
+
+    static void dessinerDistants(Graphics2D g, Jeu jeu, List<JoueurDistant> liste) {
+        List<JoueurDistant> copie;
+        synchronized(liste){copie=new ArrayList<>(liste);}
+        Map m=jeu.getCarte();
+        for(JoueurDistant d:copie) {
+            int x=d.getX(), y=m.getHauteurPixels()-d.getY()-40;
+            Color col="Lignac".equals(d.getAvatar())?new Color(70,190,255):("Tarayre".equals(d.getAvatar())?new Color(255,180,60):new Color(250,90,140));
+            g.setColor(Color.BLACK);g.fillOval(x-2,y-2,36,44);g.setColor(col);g.fillOval(x,y,32,40);
+            g.setColor(Color.WHITE);g.drawString(d.getPseudo(),x-4,y-6);
         }
     }
 }

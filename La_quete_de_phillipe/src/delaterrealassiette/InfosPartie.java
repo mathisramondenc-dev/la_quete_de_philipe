@@ -20,15 +20,23 @@ public class InfosPartie {
     private final String pseudo;
     private final String identifiantPartie;
     private final String motDePasse;
+    // === MULTIJOUEUR === Identifiant opaque propre à cette instance de jeu.
+    private final String sessionId;
 
     /* ________________________________________________________________
      * ACTION : Crée les informations de connexion d'un joueur.
      * [INFO] Les champs doivent avoir été vérifiés avant (verifier...).
      * ________________________________________________________________ */
     public InfosPartie(String pseudo, String identifiantPartie, String motDePasse) {
+        this(pseudo, identifiantPartie, motDePasse, null);
+    }
+
+    // === MULTIJOUEUR ===
+    public InfosPartie(String pseudo, String identifiantPartie, String motDePasse, String sessionId) {
         this.pseudo = pseudo;
         this.identifiantPartie = identifiantPartie;
         this.motDePasse = motDePasse;
+        this.sessionId = sessionId;
     }
 
     // ===================== Vérifications =====================
@@ -98,6 +106,9 @@ public class InfosPartie {
     public String getMotDePasse() {
         return motDePasse;
     }
+
+    // === MULTIJOUEUR ===
+    public String getSessionId() { return sessionId; }
 
     @Override
     public String toString() {

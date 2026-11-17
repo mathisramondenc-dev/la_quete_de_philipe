@@ -55,6 +55,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     private final Graphics2D contexte;
     private final ClavierSouris clavierSouris;
     private final Timer timer;
+    // === MULTIJOUEUR === Synchronisation isolée de l’EDT.
+    private final SynchronisationBDD synchronisationBDD;
     private boolean pleinEcran;
     private Rectangle limitesFenetreAvantPleinEcran;
     private int etatFenetreAvantPleinEcran;
@@ -86,6 +88,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         super();
         this.jeu = jeu;
         this.infosPartie = infosPartie;
+        this.synchronisationBDD = (jeu != null && infosPartie != null && infosPartie.getSessionId() != null)
+                ? new SynchronisationBDD(jeu, infosPartie) : null;
         if (infosPartie != null) {
             setTitle(TITRE + " - " + infosPartie.getPseudo()
                     + " - partie " + infosPartie.getIdentifiantPartie());
@@ -135,6 +139,14 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         });
 
         timer = new Timer(DUREE_TIC, this);
+        // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
+        });
+        // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
+        });
         setResizable(true);
         pack();
         setLocationRelativeTo(null);
@@ -249,6 +261,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
             timer.setDelay(1000 / IMAGES_PAR_SECONDE_DEBUG);
         }
         timer.start();
+        // === MULTIJOUEUR ===
+        if (synchronisationBDD != null) synchronisationBDD.demarrer();
     }
 
     /* ________________________________________________________________
@@ -279,6 +293,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
      * ________________________________________________________________ */
     public void arreter() {
         timer.stop();
+        // === MULTIJOUEUR ===
+        if (synchronisationBDD != null) synchronisationBDD.arreter();
     }
 
     /* ________________________________________________________________
@@ -302,6 +318,8 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                 jeu.rendu(contexte);
                 jeu.dessinerIngredients(contexte);
                 jeu.getInventaireRecette().dessiner(contexte, LARGEUR_JEU);
+                // === MULTIJOUEUR ===
+                if (synchronisationBDD != null) GestionBDD.dessinerDistants(contexte, jeu, synchronisationBDD.getJoueursDistants());
             }
         } else {
             renduDebug(clic);
