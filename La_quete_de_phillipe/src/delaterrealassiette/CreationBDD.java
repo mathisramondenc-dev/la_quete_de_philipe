@@ -123,6 +123,8 @@ public class CreationBDD {
             "ALTER TABLE joueur_multi ADD COLUMN IF NOT EXISTS direction_gauche TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE joueur_multi ADD COLUMN IF NOT EXISTS en_mouvement TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE joueur_multi ADD COLUMN IF NOT EXISTS dernier_ping TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)",
+            // Index couvrant les consultations par partie et session; CREATE INDEX IF NOT EXISTS est idempotent sous MariaDB.
+            "CREATE INDEX IF NOT EXISTS ix_joueur_multi_code_session ON joueur_multi(code_partie,session_id)",
 
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS code_partie VARCHAR(40) NOT NULL DEFAULT ''",
             "ALTER TABLE ingredient_multi ADD COLUMN IF NOT EXISTS niveau INT NOT NULL DEFAULT 0",

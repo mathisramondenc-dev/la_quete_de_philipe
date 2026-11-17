@@ -259,23 +259,25 @@ public class GestionBDD {
         ins="INSERT IGNORE INTO levier_multi(code_partie,niveau,levier_id,id_mecanisme,actif) VALUES (?,?,?,?,?)";
         try(PreparedStatement p=c.prepareStatement(ins)){for(Levier l:jeu.getLeviers()){p.setString(1,code);p.setInt(2,niv);p.setInt(3,l.getIndexMulti());p.setInt(4,l.getIdMecanisme());p.setBoolean(5,l.isActive());p.addBatch();}p.executeBatch();}
     }
-    private static void synchroniserMonde(Connection c,InfosPartie i,Jeu jeu) throws SQLException {
+    /** Publie les événements en lot à chaque cycle de 100 ms, sans attendre le polling du monde. */
+    private static void publierEvenements(Connection c, InfosPartie i, Jeu jeu) throws SQLException {
         String code=i.getIdentifiantPartie(); int niv=jeu.getNumeroNiveau();
-        // Seul l’hébergeur crée la photographie initiale du niveau; les clients attendent ses INSERT.
-        if (i.estHebergeur()) initialiserMonde(c,i,jeu);
-        // Les collectes sont idempotentes: une seule session gagne la mise à jour NULL->pseudo.
         String sql="UPDATE ingredient_multi SET ramasse_par=? WHERE code_partie=? AND niveau=? AND ingredient_id=? AND ramasse_par IS NULL";
         try(PreparedStatement p=c.prepareStatement(sql)){Integer id;while((id=jeu.getCollectesEnAttente().poll())!=null){p.setString(1,i.getPseudo());p.setString(2,code);p.setInt(3,niv);p.setInt(4,id);p.addBatch();}p.executeBatch();}
         String deg="UPDATE monstre_multi SET vivant=IF(pv-?>0,1,0),pv=GREATEST(0,pv-?) WHERE code_partie=? AND niveau=? AND monstre_id=?";
         try(PreparedStatement p=c.prepareStatement(deg)){String demande;while((demande=jeu.getDegatsEnAttente().poll())!=null){String[] v=demande.split(":");int valeur=Integer.parseInt(v[1]);p.setInt(1,valeur);p.setInt(2,valeur);p.setString(3,code);p.setInt(4,niv);p.setInt(5,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
-        String lev="UPDATE levier_multi SET actif=? WHERE code_partie=? AND niveau=? AND levier_id=?";
-        try(PreparedStatement p=c.prepareStatement(lev)){String demande;while((demande=jeu.getLeviersEnAttente().poll())!=null){String[] v=demande.split(":");p.setBoolean(1,Boolean.parseBoolean(v[1]));p.setString(2,code);p.setInt(3,niv);p.setInt(4,Integer.parseInt(v[0]));p.addBatch();}p.executeBatch();}
+        String lev="UPDATE levier_multi SET actif=? WHERE code_partie=? AND niveau=? AND levier_id=? AND actif<>?";
+        try(PreparedStatement p=c.prepareStatement(lev)){String demande;while((demande=jeu.getLeviersEnAttente().poll())!=null){String[] v=demande.split(":");p.setBoolean(1,Boolean.parseBoolean(v[1]));p.setString(2,code);p.setInt(3,niv);p.setInt(4,Integer.parseInt(v[0]));p.setBoolean(5,Boolean.parseBoolean(v[1]));p.addBatch();}p.executeBatch();}
+    }
+
+    private static void synchroniserMonde(Connection c,InfosPartie i,Jeu jeu) throws SQLException {
+        String code=i.getIdentifiantPartie(); int niv=jeu.getNumeroNiveau();
         if(i.estHebergeur()){
             // Relire les PV persistants puis publier la simulation locale autoritaire.
             List<EtatMonstre> avant=lireMonstres(c,code,niv); java.util.Map<Integer,Integer> pv=new java.util.HashMap<>();for(EtatMonstre e:avant)pv.put(e.id,e.pv);
             for(Entite e:jeu.getEntites())if(e instanceof Monstre){Monstre m=(Monstre)e;int vie=pv.getOrDefault(m.getIndexMulti(),100);m.appliquerDegats(Math.max(0,m.getPointsDeVie()-vie));}
-            String up="UPDATE monstre_multi SET x=?,y=?,pv=?,vivant=?,direction_gauche=? WHERE code_partie=? AND niveau=? AND monstre_id=?";
-            try(PreparedStatement p=c.prepareStatement(up)){for(Entite e:jeu.getEntites())if(e instanceof Monstre){Monstre m=(Monstre)e;p.setInt(1,m.getPositionX());p.setInt(2,m.getPositionY());p.setInt(3,m.getPointsDeVie());p.setBoolean(4,m.estVivant());p.setBoolean(5,m.isRegardeVersLaGauche());p.setString(6,code);p.setInt(7,niv);p.setInt(8,m.getIndexMulti());p.addBatch();}p.executeBatch();}
+            String up="UPDATE monstre_multi SET x=?,y=?,pv=?,vivant=?,direction_gauche=? WHERE code_partie=? AND niveau=? AND monstre_id=? AND (x<>? OR y<>? OR pv<>? OR vivant<>? OR direction_gauche<>?)";
+            try(PreparedStatement p=c.prepareStatement(up)){for(Entite e:jeu.getEntites())if(e instanceof Monstre){Monstre m=(Monstre)e;p.setInt(1,m.getPositionX());p.setInt(2,m.getPositionY());p.setInt(3,m.getPointsDeVie());p.setBoolean(4,m.estVivant());p.setBoolean(5,m.isRegardeVersLaGauche());p.setString(6,code);p.setInt(7,niv);p.setInt(8,m.getIndexMulti());p.setInt(9,m.getPositionX());p.setInt(10,m.getPositionY());p.setInt(11,m.getPointsDeVie());p.setBoolean(12,m.estVivant());p.setBoolean(13,m.isRegardeVersLaGauche());p.addBatch();}p.executeBatch();}
         }
         final List<Integer> collectes=new ArrayList<>();String sel="SELECT ingredient_id FROM ingredient_multi WHERE code_partie=? AND niveau=? AND ramasse_par IS NOT NULL";
         try(PreparedStatement p=c.prepareStatement(sel)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){while(r.next())collectes.add(r.getInt(1));}}
@@ -290,22 +292,63 @@ public class GestionBDD {
         try(PreparedStatement p=c.prepareStatement(sql)){p.setString(1,code);p.setInt(2,niv);try(ResultSet r=p.executeQuery()){while(r.next())l.add(new EtatMonstre(r.getInt(1),r.getInt(2),r.getInt(3),r.getInt(4),r.getBoolean(5),r.getBoolean(6)));}}return l;
     }
 
-    // === MULTIJOUEUR === Chaque instance du jeu possède un thread JDBC dédié.
-    static void synchroniser(Connection c, InfosPartie infos, Jeu jeu, List<JoueurDistant> distants) throws SQLException {
-        Joueur j=jeu.getJoueur();
-        String upd="UPDATE joueur_multi SET position_x=?,position_y=?,avatar_actuel=?,direction_gauche=?,en_mouvement=?,dernier_ping=CURRENT_TIMESTAMP(3) WHERE session_id=?";
-        try(PreparedStatement p=c.prepareStatement(upd)) {
-            p.setInt(1,j.getPositionX()); p.setInt(2,j.getPositionY()); p.setString(3,j.getNomAvatarActuel()); p.setBoolean(4,j.isRegardeVersLaGauche()); p.setBoolean(5,j.estEnMouvement()); p.setString(6,infos.getSessionId());
-            if(p.executeUpdate()==0) throw new SQLException("Session multijoueur expirée.");
+    // État privé au thread de synchronisation, sans partage entre sessions.
+    static final class EtatSynchronisation {
+        int x=Integer.MIN_VALUE, y=Integer.MIN_VALUE;
+        String avatar=null;
+        boolean gauche, mouvement;
+        long dernierPing;
+        int niveauMondeInitialise=Integer.MIN_VALUE;
+    }
+    private static volatile long derniereAlerteSync;
+    static void signalerErreurSynchronisation(SQLException e) {
+        long maintenant=System.currentTimeMillis();
+        if(maintenant-derniereAlerteSync>10000L) {
+            derniereAlerteSync=maintenant;
+            System.err.println("Synchronisation multijoueur (nouvelle tentative): "+e.getMessage());
         }
-        List<JoueurDistant> nouveau=new ArrayList<>();
+    }
+
+    // === MULTIJOUEUR === Publication de position à 100 ms, monde à ~700 ms.
+    static void synchroniser(Connection c, InfosPartie infos, Jeu jeu, List<JoueurDistant> distants,
+            EtatSynchronisation etat, boolean lireMonde) throws SQLException {
+        Joueur j=jeu.getJoueur();
+        int x=j.getPositionX(), y=j.getPositionY();
+        String avatar=j.getNomAvatarActuel();
+        boolean gauche=j.isRegardeVersLaGauche(), mouvement=j.estEnMouvement();
+        long maintenant=System.currentTimeMillis();
+        boolean changement=x!=etat.x || y!=etat.y || !avatar.equals(etat.avatar)
+                || gauche!=etat.gauche || mouvement!=etat.mouvement;
+        if(changement || maintenant-etat.dernierPing>=5000L) {
+            String upd="UPDATE joueur_multi SET position_x=?,position_y=?,avatar_actuel=?,direction_gauche=?,en_mouvement=?,dernier_ping=CURRENT_TIMESTAMP(3) WHERE session_id=?";
+            try(PreparedStatement p=c.prepareStatement(upd)) {
+                p.setInt(1,x); p.setInt(2,y); p.setString(3,avatar); p.setBoolean(4,gauche); p.setBoolean(5,mouvement); p.setString(6,infos.getSessionId());
+                if(p.executeUpdate()==0) throw new SQLException("Session multijoueur expirée.");
+            }
+            etat.x=x; etat.y=y; etat.avatar=avatar; etat.gauche=gauche; etat.mouvement=mouvement; etat.dernierPing=maintenant;
+        }
         String sel="SELECT pseudo,avatar_actuel,position_x,position_y,direction_gauche,en_mouvement FROM joueur_multi WHERE code_partie=? AND session_id<>? AND dernier_ping >= CURRENT_TIMESTAMP(3) - INTERVAL 15 SECOND";
+        List<JoueurDistant> nouveau=new ArrayList<>();
         try(PreparedStatement p=c.prepareStatement(sel)) {
             p.setString(1,infos.getIdentifiantPartie()); p.setString(2,infos.getSessionId());
-            try(ResultSet r=p.executeQuery()){while(r.next()) nouveau.add(new JoueurDistant(r.getString(1),r.getString(2),r.getInt(3),r.getInt(4),r.getBoolean(5),r.getBoolean(6)));}
+            try(ResultSet r=p.executeQuery()) { while(r.next()) {
+                String pseudo=r.getString(1), a=r.getString(2); int px=r.getInt(3),py=r.getInt(4);
+                boolean dir=r.getBoolean(5), mouv=r.getBoolean(6);
+                JoueurDistant precedent=null;
+                synchronized(distants) { for(JoueurDistant d:distants) if(d.getPseudo().equals(pseudo)) {precedent=d;break;} }
+                if(precedent==null) nouveau.add(new JoueurDistant(pseudo,a,px,py,dir,mouv));
+                else {precedent.mettreAJourCible(px,py,a,dir,mouv);nouveau.add(precedent);}
+            }}
         }
-        synchronized(distants){distants.clear();distants.addAll(nouveau);}
-        if (infos.estMultijoueur()) synchroniserMonde(c,infos,jeu);
+        synchronized(distants) { distants.clear(); distants.addAll(nouveau); }
+        if(infos.estMultijoueur()) {
+            if(infos.estHebergeur() && etat.niveauMondeInitialise!=jeu.getNumeroNiveau()) {
+                initialiserMonde(c,infos,jeu);
+                etat.niveauMondeInitialise=jeu.getNumeroNiveau();
+            }
+            publierEvenements(c,infos,jeu);
+            if(lireMonde) synchroniserMonde(c,infos,jeu);
+        }
     }
 
     // === MULTIJOUEUR === Retrait du seul jeton de session, sans effacer les autres.
@@ -313,7 +356,7 @@ public class GestionBDD {
         if(infos==null || infos.getSessionId()==null) return;
         try(Connection c=ConnexionBDD.getInstance().getConnection(); PreparedStatement p=c.prepareStatement("DELETE FROM joueur_multi WHERE session_id=?")) {
             p.setString(1,infos.getSessionId()); p.executeUpdate();
-        } catch(SQLException e) { System.err.println("Déconnexion BDD différée; expiration automatique active: "+e.getMessage()); }
+        } catch(SQLException e) { signalerErreurSynchronisation(e); }
     }
 
     // === MULTIJOUEUR === Les joueurs distants emploient les images locales identiques aux avatars.
