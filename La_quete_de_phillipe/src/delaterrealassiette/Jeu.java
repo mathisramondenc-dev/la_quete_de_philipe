@@ -59,6 +59,7 @@ public class Jeu {
                         positionMonstre.getPositionY()));
             }
         }
+        entites.addAll(carte.getCaisses());
         ingredients = new ArrayList<>(carte.getIngredients());
         inventaireRecette = new InventaireRecette(ingredients);
     }
@@ -76,7 +77,7 @@ public class Jeu {
      * [INFO] Une seule transition est effectuée après la collecte complète.
      * ________________________________________________________________ */
     public void miseAJour() {
-        miseAJour(new boolean[9]);
+        miseAJour(new boolean[10]);
     }
 
     /* ________________________________________________________________
@@ -96,6 +97,9 @@ public class Jeu {
             return;
         }
         joueur.miseAJourIntentions(etatBoutons);
+        if (joueur.consommerSoinDemande()) {
+            appliquerSoinMaite();
+        }
         if (joueur.consommerActivationLevier()) {
             for (Levier levier : carte.getLeviers()) {
                 if (levier.estAProximite(joueur)) {
@@ -106,7 +110,13 @@ public class Jeu {
         }
         carte.mettreAJourMecanismes(entites);
         carte.miseAJour();
+        for (Caisse caisse : carte.getCaisses()) {
+            caisse.mettreAJour();
+        }
         for (Entite entite : entites) {
+            if (entite instanceof Caisse) {
+                continue;
+            }
             entite.mettreAJour();
         }
         for (Entite entite : entites) {
@@ -137,6 +147,36 @@ public class Jeu {
         if (inventaireRecette.estComplete()) {
             passerAuNiveauSuivant();
         }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Soigne Maite et les joueurs vivants dans sa hitbox.
+     * [INFO] Le soin vaut 20 pour cent des PV max, sans dépasser ce maximum.
+     *        La demande a déjà consommé la recharge, même si personne n'est soigné.
+     * ________________________________________________________________ */
+    private void appliquerSoinMaite() {
+        int soin = joueur.getPointsDeVieMax() / 5;
+        for (Entite entite : entites) {
+            if (!(entite instanceof Joueur)) {
+                continue;
+            }
+            Joueur joueurCible = (Joueur) entite;
+            if (!joueurCible.estMort() && chevauchent(joueur, joueurCible)) {
+                joueurCible.modifierPointsDeVie(soin);
+            }
+        }
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Vérifie le chevauchement de deux hitbox.
+     * ________________________________________________________________ */
+    private boolean chevauchent(Entite premiereEntite, Entite secondeEntite) {
+        int[] premiereHitbox = premiereEntite.getHitbox();
+        int[] secondeHitbox = secondeEntite.getHitbox();
+        return premiereEntite.getPositionX() < secondeEntite.getPositionX() + secondeHitbox[0]
+                && secondeEntite.getPositionX() < premiereEntite.getPositionX() + premiereHitbox[0]
+                && premiereEntite.getPositionY() < secondeEntite.getPositionY() + secondeHitbox[1]
+                && secondeEntite.getPositionY() < premiereEntite.getPositionY() + premiereHitbox[1];
     }
 
     /* ________________________________________________________________
@@ -189,15 +229,22 @@ public class Jeu {
     public void rendu(Graphics2D contexte) {
         carte.rendu(contexte);
         for (Entite entite : entites) {
-            int[] hitbox = entite.getHitbox();
-            int xEntite = entite.getPositionX();
-            int yEntite = carte.getHauteurPixels() - entite.getPositionY() - hitbox[1];
-            entite.dessiner(contexte, xEntite, yEntite);
+            if (!(entite instanceof Caisse)) {
+                int[] hitbox = entite.getHitbox();
+                int xEntite = entite.getPositionX();
+                int yEntite = carte.getHauteurPixels() - entite.getPositionY() - hitbox[1];
+                entite.dessiner(contexte, xEntite, yEntite);
+            }
         }
         for (ObjetInteractif objet : carte.getObjetsDecor()) {
             int[] hitbox = objet.getHitbox();
             int yEcran = carte.getHauteurPixels() - objet.getPositionY() - hitbox[1];
             objet.dessiner(contexte, objet.getPositionX(), yEcran);
+        }
+        for (Caisse caisse : carte.getCaisses()) {
+            int[] hitbox = caisse.getHitbox();
+            int yEcran = carte.getHauteurPixels() - caisse.getPositionY() - hitbox[1];
+            caisse.dessiner(contexte, caisse.getPositionX(), yEcran);
         }
         dessinerPointsDeVie(contexte);
         if (ticsAvantReapparition > 0) {
@@ -225,7 +272,7 @@ public class Jeu {
         int largeurRemplie = largeurBarre * joueur.getPointsDeVie()
                 / joueur.getPointsDeVieMax();
         contexte.setColor(Color.BLACK);
-        contexte.fillRect(18, 18, largeurBarre + 4, hauteurBarre + 28);
+        contexte.fillRect(18, 18, largeurBarre + 4, hauteurBarre + 38);
         contexte.setColor(Color.DARK_GRAY);
         contexte.fillRect(20, 40, largeurBarre, hauteurBarre);
         contexte.setColor(joueur.getPointsDeVie() > joueur.getPointsDeVieMax() / 3
@@ -235,6 +282,11 @@ public class Jeu {
         contexte.setFont(new Font("SansSerif", Font.BOLD, 18));
         contexte.drawString("PV " + joueur.getPointsDeVie() + " / "
                 + joueur.getPointsDeVieMax(), 20, 34);
+        int largeurRecharge = (int) (largeurBarre * joueur.getProgressionRechargeSoin());
+        contexte.setColor(Color.DARK_GRAY);
+        contexte.fillRect(20, 68, largeurBarre, 8);
+        contexte.setColor(new Color(105, 190, 235));
+        contexte.fillRect(20, 68, largeurRecharge, 8);
     }
 
     /* ________________________________________________________________

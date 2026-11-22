@@ -36,6 +36,7 @@ public class Map {
     private boolean modifie;
     private final List<Ingredient> ingredients = new ArrayList<>();
     private final List<ObjetInteractif> objetsDecor = new ArrayList<>();
+    private final List<Caisse> caisses = new ArrayList<>();
     private final List<PositionMonstre> positionsMonstres = new ArrayList<>();
     private int[] positionDepart;
 
@@ -122,6 +123,21 @@ public class Map {
                                 - (ligneGrille + hauteurMortelle) * tailleTuile;
                         objetsDecor.add(new BlocMortel(this, positionX, positionY,
                                 largeurMortelle * tailleTuile, hauteurMortelle * tailleTuile));
+                    } else if ("ECHELLE".equalsIgnoreCase(champs[0])) {
+                        int colonne = Integer.parseInt(champs[1]);
+                        int ligneGrille = Integer.parseInt(champs[2]);
+                        int largeurEchelle = Integer.parseInt(champs[3]);
+                        int hauteurEchelle = Integer.parseInt(champs[4]);
+                        int positionX = colonne * tailleTuile;
+                        int positionY = getHauteurPixels() - (ligneGrille + hauteurEchelle) * tailleTuile;
+                        objetsDecor.add(new Echelle(this, positionX, positionY,
+                                largeurEchelle * tailleTuile, hauteurEchelle * tailleTuile));
+                    } else if ("CAISSE".equalsIgnoreCase(champs[0])) {
+                        int colonne = Integer.parseInt(champs[1]);
+                        int ligneGrille = Integer.parseInt(champs[2]);
+                        int positionX = colonne * tailleTuile;
+                        int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
+                        caisses.add(new Caisse(this, positionX, positionY));
                     } else {
                         int identifiant = Integer.parseInt(champs[1]);
                         int colonne = Integer.parseInt(champs[2]);
@@ -246,6 +262,128 @@ public class Map {
     }
 
     /* ________________________________________________________________
+     * ACTION : Retourne les caisses présentes sur la carte.
+     * ________________________________________________________________ */
+    public List<Caisse> getCaisses() {
+        return Collections.unmodifiableList(caisses);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si une hitbox peut se poser sur un sol ou une échelle.
+     * ________________________________________________________________ */
+    public boolean aUnSolSous(int x, int y, int largeurHitbox, int hauteurHitbox) {
+        if (collisionHitbox(x, y - 1, largeurHitbox, hauteurHitbox)) {
+            return true;
+        }
+        return estSurSommetEchelle(x, y, largeurHitbox);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Détecte un contact exact avec le dessus d'une échelle.
+     * ________________________________________________________________ */
+    public boolean estSurSommetEchelle(int x, int y, int largeurHitbox) {
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof Echelle) {
+                int haut = objet.getPositionY() + objet.getHitbox()[1];
+                if (y == haut && x < objet.getPositionX() + objet.getHitbox()[0]
+                        && x + largeurHitbox > objet.getPositionX()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Détecte le franchissement descendant du sommet d'une échelle.
+     * ________________________________________________________________ */
+    public int getSommetEchelleFranchi(int x, int anciennePositionY, int nouvellePositionY,
+            int largeurHitbox) {
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof Echelle) {
+                int haut = objet.getPositionY() + objet.getHitbox()[1];
+                if (anciennePositionY >= haut && nouvellePositionY < haut
+                        && x < objet.getPositionX() + objet.getHitbox()[0]
+                        && x + largeurHitbox > objet.getPositionX()) {
+                    return haut;
+                }
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si une hitbox est sur ou dans une échelle.
+     * ________________________________________________________________ */
+    public boolean estSurOuDansEchelle(int x, int y, int largeurHitbox,
+            int hauteurHitbox) {
+        if (chevaucheEchelle(x, y, largeurHitbox, hauteurHitbox)) {
+            return true;
+        }
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof Echelle) {
+                int haut = objet.getPositionY() + objet.getHitbox()[1];
+                if (y == haut && x < objet.getPositionX() + objet.getHitbox()[0]
+                        && x + largeurHitbox > objet.getPositionX()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Indique si une hitbox chevauche une échelle.
+     * ________________________________________________________________ */
+    public boolean chevaucheEchelle(int x, int y, int largeurHitbox, int hauteurHitbox) {
+        for (ObjetInteractif objet : objetsDecor) {
+            if (objet instanceof Echelle
+                    && objet.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Essaie de pousser une caisse et les caisses qui la précèdent.
+     * ________________________________________________________________ */
+    public boolean pousserCaisse(Caisse caisse, int direction) {
+        int prochainePositionX = caisse.getPositionX() + direction;
+        for (Caisse autre : caisses) {
+            if (autre != caisse && autre.chevaucheRectangle(prochainePositionX,
+                    caisse.getPositionY(), caisse.getHitbox()[0], caisse.getHitbox()[1])) {
+                if (!pousserCaisse(autre, direction)) {
+                    return false;
+                }
+            }
+        }
+        if (collisionHitboxSansCaisses(prochainePositionX, caisse.getPositionY(),
+                caisse.getHitbox()[0], caisse.getHitbox()[1], caisse)) {
+            return false;
+        }
+        caisse.setPositionX(prochainePositionX);
+        return true;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Met à jour les caisses sans inclure leur propre hitbox.
+     * ________________________________________________________________ */
+    public boolean collisionHitboxSansCaisses(int x, int y, int largeurHitbox,
+            int hauteurHitbox, Caisse caisseIgnoree) {
+        if (collisionTerrainEtPortes(x, y, largeurHitbox, hauteurHitbox)) {
+            return true;
+        }
+        for (Caisse caisse : caisses) {
+            if (caisse != caisseIgnoree
+                    && caisse.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* ________________________________________________________________
      * ACTION : Retourne les objets du décor interactif hors ingrédients.
      * ________________________________________________________________ */
     public List<ObjetInteractif> getObjetsDecor() {
@@ -283,8 +421,7 @@ public class Map {
                     continue;
                 }
                 for (Entite entite : entites) {
-                    if ((entite instanceof Joueur || entite instanceof Monstre)
-                            && candidat.enCollisionAvec(entite)) {
+                    if (candidat.enCollisionAvec(entite)) {
                         porteOccupee = true;
                         break;
                     }
@@ -453,23 +590,32 @@ public class Map {
      * [INFO] On suppose que y = 0 correspond au bas du décor.
      * ________________________________________________________________ */
     public boolean collisionHitbox(int x, int y, int largeurHitbox, int hauteurHitbox) {
-        // Bords de la hitbox en pixels, -1 car le pixel numéro 0 existe
+        if (collisionTerrainEtPortes(x, y, largeurHitbox, hauteurHitbox)) {
+            return true;
+        }
+        for (Caisse caisse : caisses) {
+            if (caisse.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Teste les tuiles solides et les portes fermées.
+     * ________________________________________________________________ */
+    private boolean collisionTerrainEtPortes(int x, int y, int largeurHitbox,
+            int hauteurHitbox) {
         int hitboxPixelGauche = x;
         int hitboxPixelDroite = x + largeurHitbox - 1;
         int hitboxPixelBas = y;
         int hitboxPixelHaut = y + hauteurHitbox - 1;
-
-        // On prends le complementaire parce que la position d'un joueur est prise du sol alors que le decor du haut
         int hitboxPixelHautDecor = getHauteurPixels() - 1 - hitboxPixelHaut;
         int hitboxPixelBasDecor = getHauteurPixels() - 1 - hitboxPixelBas;
-
-        // Pixels -> tuiles, floorDiv car en Java -1 / 32 vaut 0 et pas -1
         int hitboxTuileGauche = Math.floorDiv(hitboxPixelGauche, tailleTuile);
         int hitboxTuileDroite = Math.floorDiv(hitboxPixelDroite, tailleTuile);
         int hitboxTuileHaut = Math.floorDiv(hitboxPixelHautDecor, tailleTuile);
         int hitboxTuileBas = Math.floorDiv(hitboxPixelBasDecor, tailleTuile);
-
-        // i parcourt les lignes du haut vers le bas, j les colonnes de gauche à droite
         for (int i = hitboxTuileHaut; i <= hitboxTuileBas; i++) {
             for (int j = hitboxTuileGauche; j <= hitboxTuileDroite; j++) {
                 if (estSolide(i, j)) {
@@ -477,7 +623,6 @@ public class Map {
                 }
             }
         }
-
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof BlocPorte && objet.isCollisionJoueur()
                     && objet.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {

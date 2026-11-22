@@ -102,6 +102,8 @@ public class GestionBDD {
             joueur.changerChef(joueur.getLignac());
         } else if ("Tarayre".equals(nom)) {
             joueur.changerChef(joueur.getTarayre());
+        } else if ("Maite".equals(nom)) {
+            joueur.changerChef(joueur.getMaite());
         }
     }
 
