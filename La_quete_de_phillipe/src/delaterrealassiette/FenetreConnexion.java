@@ -37,7 +37,7 @@ public class FenetreConnexion extends Fenetre {
     public FenetreConnexion() {
         super();
 
-        JPanel fond = new JPanel(new BorderLayout());
+        JPanel fond = creerPanneauFond(false); // image des 4 chefs (voir Fenetre)
         fond.setBackground(COULEUR_FOND);
         fond.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
 

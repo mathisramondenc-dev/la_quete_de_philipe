@@ -9,7 +9,7 @@ public class FenetreRejoindre extends Fenetre {
     private final JTextField pseudo=new JTextField(15), code=new JTextField(15);
     private final JPasswordField mdp=new JPasswordField(15);
     public FenetreRejoindre() {
-        super(); JPanel fond=new JPanel(new BorderLayout());fond.setBackground(COULEUR_FOND);fond.setBorder(BorderFactory.createEmptyBorder(20,30,20,30));
+        super(); JPanel fond=creerPanneauFond(false);fond.setBackground(COULEUR_FOND);fond.setBorder(BorderFactory.createEmptyBorder(20,30,20,30));
         JLabel titre=creerTexte("Rejoindre une partie",30,true);titre.setHorizontalAlignment(JLabel.CENTER);fond.add(titre,BorderLayout.NORTH);
         JPanel form=new JPanel(new GridBagLayout());form.setOpaque(false);ajouterLigneFormulaire(form,0,"Pseudo :",pseudo);ajouterLigneFormulaire(form,1,"Code de partie :",code);ajouterLigneFormulaire(form,2,"Mot de passe :",mdp);fond.add(form,BorderLayout.CENTER);
         JButton back=creerBouton("Retour",120,45,16,e->retour()); JButton go=creerBouton("Rejoindre",170,45,18,e->rejoindre());
