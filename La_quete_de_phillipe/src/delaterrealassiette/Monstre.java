@@ -63,12 +63,13 @@ public class Monstre extends Entite {
     @Override
     public void mettreAJour() {
         int direction = isRegardeVersLaGauche() ? -1 : 1;
-        boolean estAuSol = map.collisionHitbox(
-                positionX, positionY - 1, hitbox[0], hitbox[1]) && vitesseY <= 0;
+        boolean estAuSol = estAuSol();
         int xAvant = direction > 0
                 ? positionX + hitbox[0] - 1 + vitesse : positionX - vitesse;
 
-        if (estAuSol && !solAtteignable(xAvant)) {
+        boolean echelleDevant = map.chevaucheEchelle(xAvant, positionY,
+                hitbox[0], hitbox[1]);
+        if (estAuSol && !echelleDevant && !solAtteignable(xAvant)) {
             definirOrientationGauche(direction > 0);
             direction = -direction;
         }

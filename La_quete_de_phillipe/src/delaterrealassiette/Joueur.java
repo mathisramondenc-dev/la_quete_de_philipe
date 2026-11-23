@@ -1,7 +1,7 @@
 package delaterrealassiette;
 
 /* ________________________________________________________________
- * ACTION : Gère les avatars, les intentions et les données du joueur.
+ * ACTION : Gère les quatre avatars, les intentions et les données du joueur.
  * [INFO] Les ordonnées augmentent vers le haut.
  * [DEPENDANCE] Entite conserve la map partagée et résout les déplacements.
  * ________________________________________________________________ */
@@ -15,6 +15,7 @@ public class Joueur extends Entite {
     public static final int toucheTarayre = 6;
     public static final int toucheCompetence = 7;
     public static final int toucheSauter = 8;
+    public static final int toucheMaite = 9;
 
     private final String pseudo;
     private final int pointsDeVieMax;
@@ -24,6 +25,7 @@ public class Joueur extends Entite {
     private final Avatar etchebest;
     private final Avatar lignac;
     private final Avatar tarayre;
+    private final Avatar maite;
     private Avatar avatarActuel;
 
     private boolean allerGauche;
@@ -36,9 +38,13 @@ public class Joueur extends Entite {
     private boolean devenirEtchebest;
     private boolean devenirLignac;
     private boolean devenirTarayre;
+    private boolean devenirMaite;
+    private boolean soinDemande;
+    private int tempsRechargeSoin;
+    private static final int dureeRechargeSoin = 375;
 
     /* ________________________________________________________________
-     * ACTION : Initialise le joueur et ses trois avatars.
+     * ACTION : Initialise le joueur et ses quatre avatars.
      * [DEPENDANCE] Jeu transmet son unique instance de Map.
      * ________________________________________________________________ */
     public Joueur(Map map, String pseudo) {
@@ -53,6 +59,8 @@ public class Joueur extends Entite {
                 new int[]{28, 60}, "images/sprites/lignac.png");
         tarayre = new Avatar("Tarayre", 8, 30,
                 new int[]{18, 30}, "images/sprites/tarayre.png");
+        maite = new Avatar("Maite", 6, 30,
+                new int[]{32, 64}, "images/sprites/maite.png");
 
         avatarActuel = etchebest;
         chargerImage(avatarActuel.getCheminImage());
@@ -68,6 +76,7 @@ public class Joueur extends Entite {
         chargerImage(avatarActuel.getCheminImage());
         pointsDeVie = joueurPrecedent.pointsDeVie;
         score = joueurPrecedent.score;
+        tempsRechargeSoin = joueurPrecedent.tempsRechargeSoin;
     }
 
     /* ________________________________________________________________
@@ -124,6 +133,13 @@ public class Joueur extends Entite {
     }
 
     /* ________________________________________________________________
+     * ACTION : Retourne le profil Maite.
+     * ________________________________________________________________ */
+    public Avatar getMaite() {
+        return maite;
+    }
+
+    /* ________________________________________________________________
      * ACTION : Retourne la vitesse de l'avatar actif.
      * ________________________________________________________________ */
     @Override
@@ -171,6 +187,9 @@ public class Joueur extends Entite {
         if (devenirTarayre) {
             changerChef(tarayre);
         }
+        if (devenirMaite) {
+            changerChef(maite);
+        }
 
         vitesseX = 0;
 
@@ -186,22 +205,20 @@ public class Joueur extends Entite {
             definirOrientationGauche(false);
         }
 
-        int[] dimensionsHitbox = getHitbox();
-        boolean estAuSol = map.collisionHitbox(
-                positionX, positionY - 1, dimensionsHitbox[0], dimensionsHitbox[1])
-                && vitesseY <= 0;
-
-        if (estAuSol) {
-            vitesseY = 0;
-        } else {
-            vitesseY = Math.max(vitesseY + gravite, vitesseYMin);
+        boolean estAuSol = estAuSol();
+        boolean sautPossible = estAuSol || estSurEchelle;
+        if (sautDemande && sautPossible) {
+            vitesseY = getForceSaut();
+            estSurEchelle = false;
         }
-
-        if (sautDemande && estAuSol) {
+        mettreAJourGraviteEtEchelle(sautDemande);
+        if (sautDemande && sautPossible) {
             vitesseY = getForceSaut();
         }
+        if (descendreDemande && estSurEchelle && estAuSol) {
+            vitesseY = -getVitesse();
+        }
         sautDemande = false;
-
         deplacer();
     }
 
@@ -212,6 +229,7 @@ public class Joueur extends Entite {
     public void miseAJourIntentions(boolean[] touchesAppuyees) {
         allerGauche = touchesAppuyees[toucheGauche];
         allerDroite = touchesAppuyees[toucheDroite];
+        definirCommandesEchelle(touchesAppuyees[toucheHaut], touchesAppuyees[toucheBas]);
 
         boolean toucheSautAppuyee = touchesAppuyees[toucheSauter];
         if (toucheSautAppuyee && !toucheSautPrecedemmentAppuyee) {
@@ -219,15 +237,25 @@ public class Joueur extends Entite {
         }
         toucheSautPrecedemmentAppuyee = toucheSautAppuyee;
 
+        if (tempsRechargeSoin > 0) {
+            tempsRechargeSoin--;
+        }
+
         utiliserCompetence = touchesAppuyees[toucheCompetence];
         if (utiliserCompetence && !toucheCompetencePrecedemmentAppuyee
                 && "Tarayre".equals(avatarActuel.getNom())) {
             activationLevierDemandee = true;
         }
+        if (utiliserCompetence && !toucheCompetencePrecedemmentAppuyee
+                && "Maite".equals(avatarActuel.getNom())
+                && tempsRechargeSoin == 0) {
+            soinDemande = true;
+        }
         toucheCompetencePrecedemmentAppuyee = utiliserCompetence;
         devenirEtchebest = touchesAppuyees[toucheEtchebest];
         devenirLignac = touchesAppuyees[toucheLignac];
         devenirTarayre = touchesAppuyees[toucheTarayre];
+        devenirMaite = touchesAppuyees[toucheMaite];
     }
 
     /* ________________________________________________________________
@@ -238,6 +266,26 @@ public class Joueur extends Entite {
         boolean demandee = activationLevierDemandee;
         activationLevierDemandee = false;
         return demandee;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Consomme la demande de soin de Maite et lance son rechargement.
+     * [INFO] La recharge appartient au joueur et non à son avatar.
+     * ________________________________________________________________ */
+    public boolean consommerSoinDemande() {
+        boolean demandee = soinDemande;
+        soinDemande = false;
+        if (demandee) {
+            tempsRechargeSoin = dureeRechargeSoin;
+        }
+        return demandee;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Retourne la progression du rechargement du soin.
+     * ________________________________________________________________ */
+    public double getProgressionRechargeSoin() {
+        return 1.0 - (double) tempsRechargeSoin / dureeRechargeSoin;
     }
 
     /* ________________________________________________________________
