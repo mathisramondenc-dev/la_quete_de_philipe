@@ -5,6 +5,10 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.UUID;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -259,6 +263,59 @@ public class GestionBDD {
             try(ResultSet r=p.executeQuery()){while(r.next()) nouveau.add(new JoueurDistant(r.getString(1),r.getString(2),r.getInt(3),r.getInt(4)));}
         }
         synchronized(distants){distants.clear();distants.addAll(nouveau);}
+        synchroniserObjets(c, infos, jeu);
+    }
+
+    // === MULTIJOUEUR === Publication des actions locales, puis lecture de l'état partagé.
+    private static void synchroniserObjets(Connection c, InfosPartie infos, Jeu jeu) throws SQLException {
+        for (Integer niveauModifie : jeu.getNiveauxModifies()) {
+            Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
+            Set<String> ingredientsLocaux = jeu.getIngredientsModifies(niveauModifie);
+            String sqlLevier = "INSERT INTO levier_multi(code_partie,niveau_id,levier_id,actif) VALUES (?,?,?,?) "
+                    + "ON DUPLICATE KEY UPDATE actif=VALUES(actif)";
+            try (PreparedStatement p = c.prepareStatement(sqlLevier)) {
+                for (Map.Entry<Integer, Boolean> entree : leviersLocaux.entrySet()) {
+                    p.setString(1, infos.getIdentifiantPartie());
+                    p.setInt(2, niveauModifie);
+                    p.setInt(3, entree.getKey());
+                    p.setBoolean(4, entree.getValue());
+                    p.addBatch();
+                }
+                if (!leviersLocaux.isEmpty()) p.executeBatch();
+            }
+            String sqlIngredient = "INSERT IGNORE INTO ingredient_multi(code_partie,niveau_id,ingredient_id) VALUES (?,?,?)";
+            try (PreparedStatement p = c.prepareStatement(sqlIngredient)) {
+                for (String identifiant : ingredientsLocaux) {
+                    p.setString(1, infos.getIdentifiantPartie());
+                    p.setInt(2, niveauModifie);
+                    p.setString(3, identifiant);
+                    p.addBatch();
+                }
+                if (!ingredientsLocaux.isEmpty()) p.executeBatch();
+            }
+            jeu.confirmerChangementsMultijoueur(niveauModifie, leviersLocaux, ingredientsLocaux);
+        }
+
+        int niveau = jeu.getNumeroNiveau();
+        Map<Integer, Boolean> leviers = new HashMap<>();
+        String selLevier = "SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau_id=?";
+        try (PreparedStatement p = c.prepareStatement(selLevier)) {
+            p.setString(1, infos.getIdentifiantPartie());
+            p.setInt(2, niveau);
+            try (ResultSet r = p.executeQuery()) {
+                while (r.next()) leviers.put(r.getInt("levier_id"), r.getBoolean("actif"));
+            }
+        }
+        Set<String> ingredients = new HashSet<>();
+        String selIngredient = "SELECT ingredient_id FROM ingredient_multi WHERE code_partie=? AND niveau_id=?";
+        try (PreparedStatement p = c.prepareStatement(selIngredient)) {
+            p.setString(1, infos.getIdentifiantPartie());
+            p.setInt(2, niveau);
+            try (ResultSet r = p.executeQuery()) {
+                while (r.next()) ingredients.add(r.getString("ingredient_id"));
+            }
+        }
+        jeu.appliquerEtatMultijoueur(niveau, leviers, ingredients);
     }
 
     // === MULTIJOUEUR === Retrait du seul jeton de session, sans effacer les autres.

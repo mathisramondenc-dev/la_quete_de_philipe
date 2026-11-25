@@ -21,6 +21,13 @@ public class Ingredient extends ObjetInteractif {
     public TypeIngredient getTypeIngredient() { return typeIngredient; }
 
     /* ________________________________________________________________
+     * ACTION : Produit un identifiant stable pour la synchronisation du niveau.
+     * ________________________________________________________________ */
+    public String getIdentifiantMultijoueur() {
+        return typeIngredient.name() + "_" + getPositionX() + "_" + getPositionY();
+    }
+
+    /* ________________________________________________________________
      * ACTION : Rend inactif l'ingrédient après interaction du joueur.
      * ________________________________________________________________ */
     @Override

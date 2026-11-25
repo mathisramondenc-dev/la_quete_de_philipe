@@ -8,6 +8,9 @@ import java.awt.Graphics2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 /* ________________________________________________________________
  * ACTION : Gère la carte, le joueur, les ingrédients et la progression.
@@ -27,6 +30,12 @@ public class Jeu {
     private boolean victoire;
     private static final int nombreTicsAvantReapparition = 30;
     private int ticsAvantReapparition;
+    // Changements locaux en attente d'envoi par le thread JDBC.
+    private final java.util.Map<Integer, java.util.Map<Integer, Boolean>> leviersModifies = new HashMap<>();
+    private final java.util.Map<Integer, Set<String>> ingredientsModifies = new HashMap<>();
+    private java.util.Map<Integer, Boolean> leviersRecus = new HashMap<>();
+    private Set<String> ingredientsRecus = new HashSet<>();
+    private int niveauEtatsRecus;
 
     /* ________________________________________________________________
      * ACTION : Charge un niveau choisi et initialise sa recette.
@@ -85,7 +94,8 @@ public class Jeu {
      * [INFO] La mort est affichée avant le respawn, après traitement des dégâts.
      * [DEPENDANCE] Monstre utilise la collision commune d'ElementDeJeu.
      * ________________________________________________________________ */
-    public void miseAJour(boolean[] etatBoutons) {
+    public synchronized void miseAJour(boolean[] etatBoutons) {
+        appliquerEtatsRecus();
         if (victoire) {
             return;
         }
@@ -104,6 +114,8 @@ public class Jeu {
             for (Levier levier : carte.getLeviers()) {
                 if (levier.estAProximite(joueur)) {
                     levier.basculer();
+                    leviersModifies.computeIfAbsent(numeroNiveau, k -> new HashMap<>())
+                            .put(levier.getIdMecanisme(), levier.isActive());
                     break;
                 }
             }
@@ -139,6 +151,8 @@ public class Jeu {
                 if (entite instanceof Joueur
                         && ingredient.enCollisionAvec(entite)) {
                     ingredient.interagir((Joueur) entite);
+                    ingredientsModifies.computeIfAbsent(numeroNiveau, k -> new HashSet<>())
+                            .add(ingredient.getIdentifiantMultijoueur());
                     inventaireRecette.ajouter(ingredient.getTypeIngredient());
                     break;
                 }
@@ -287,6 +301,74 @@ public class Jeu {
         contexte.fillRect(20, 68, largeurBarre, 8);
         contexte.setColor(new Color(105, 190, 235));
         contexte.fillRect(20, 68, largeurRecharge, 8);
+    }
+
+    /** Retourne les niveaux pour lesquels des actions attendent leur envoi. */
+    public synchronized Set<Integer> getNiveauxModifies() {
+        Set<Integer> niveaux = new HashSet<>(leviersModifies.keySet());
+        niveaux.addAll(ingredientsModifies.keySet());
+        return niveaux;
+    }
+
+    /** Copie les états des leviers locaux d'un niveau à publier dans la base. */
+    public synchronized java.util.Map<Integer, Boolean> getLeviersModifies(int niveau) {
+        java.util.Map<Integer, Boolean> copie = leviersModifies.get(niveau);
+        return copie == null ? new HashMap<>() : new HashMap<>(copie);
+    }
+
+    /** Copie les identifiants d'ingrédients d'un niveau à publier dans la base. */
+    public synchronized Set<String> getIngredientsModifies(int niveau) {
+        Set<String> copie = ingredientsModifies.get(niveau);
+        return copie == null ? new HashSet<>() : new HashSet<>(copie);
+    }
+
+    /** Confirme les changements de ce niveau que la base vient d'accepter. */
+    public synchronized void confirmerChangementsMultijoueur(int niveau,
+            java.util.Map<Integer, Boolean> leviers, Set<String> ingredients) {
+        java.util.Map<Integer, Boolean> leviersEnAttente = leviersModifies.get(niveau);
+        if (leviersEnAttente != null) {
+            for (java.util.Map.Entry<Integer, Boolean> entree : leviers.entrySet()) {
+                if (entree.getValue().equals(leviersEnAttente.get(entree.getKey()))) {
+                    leviersEnAttente.remove(entree.getKey());
+                }
+            }
+            if (leviersEnAttente.isEmpty()) leviersModifies.remove(niveau);
+        }
+        Set<String> ingredientsEnAttente = ingredientsModifies.get(niveau);
+        if (ingredientsEnAttente != null) {
+            ingredientsEnAttente.removeAll(ingredients);
+            if (ingredientsEnAttente.isEmpty()) ingredientsModifies.remove(niveau);
+        }
+    }
+
+    /** Met en attente l'état partagé; son application sera faite sur le thread du jeu. */
+    public synchronized void appliquerEtatMultijoueur(int niveau,
+            java.util.Map<Integer, Boolean> leviers, Set<String> ingredientsRamasses) {
+        if (niveau != numeroNiveau) return;
+        niveauEtatsRecus = niveau;
+        leviersRecus = new HashMap<>(leviers);
+        ingredientsRecus = new HashSet<>(ingredientsRamasses);
+    }
+
+    /** Applique les états reçus sans les republier comme des changements locaux. */
+    private void appliquerEtatsRecus() {
+        if (niveauEtatsRecus != numeroNiveau) return;
+        for (Levier levier : carte.getLeviers()) {
+            Boolean actif = leviersRecus.get(levier.getIdMecanisme());
+            if (actif != null) levier.definirActif(actif);
+        }
+        for (Ingredient ingredient : ingredients) {
+            if (ingredient.isActif()
+                    && ingredientsRecus.contains(ingredient.getIdentifiantMultijoueur())) {
+                ingredient.interagir(joueur);
+                inventaireRecette.ajouter(ingredient.getTypeIngredient());
+            }
+        }
+    }
+
+    /** Retourne le numéro de niveau utilisé comme partie de la clé SQL. */
+    public synchronized int getNumeroNiveau() {
+        return numeroNiveau;
     }
 
     /* ________________________________________________________________
