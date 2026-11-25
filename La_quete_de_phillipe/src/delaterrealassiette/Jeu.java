@@ -366,11 +366,6 @@ public class Jeu {
         }
     }
 
-    /** Retourne le numéro de niveau utilisé comme partie de la clé SQL. */
-    public synchronized int getNumeroNiveau() {
-        return numeroNiveau;
-    }
-
     /* ________________________________________________________________
      * ACTION : Retourne la carte du niveau actif.
      * ________________________________________________________________ */
@@ -430,7 +425,7 @@ public class Jeu {
     /* ________________________________________________________________
      * ACTION : Retourne l’index du niveau actuellement actif.
      * ________________________________________________________________ */
-    public int getNumeroNiveau() {
+    public synchronized int getNumeroNiveau() {
         return numeroNiveau;
     }
 }

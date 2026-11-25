@@ -5,7 +5,6 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -269,12 +268,12 @@ public class GestionBDD {
     // === MULTIJOUEUR === Publication des actions locales, puis lecture de l'état partagé.
     private static void synchroniserObjets(Connection c, InfosPartie infos, Jeu jeu) throws SQLException {
         for (Integer niveauModifie : jeu.getNiveauxModifies()) {
-            Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
+            java.util.Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
             Set<String> ingredientsLocaux = jeu.getIngredientsModifies(niveauModifie);
             String sqlLevier = "INSERT INTO levier_multi(code_partie,niveau_id,levier_id,actif) VALUES (?,?,?,?) "
                     + "ON DUPLICATE KEY UPDATE actif=VALUES(actif)";
             try (PreparedStatement p = c.prepareStatement(sqlLevier)) {
-                for (Map.Entry<Integer, Boolean> entree : leviersLocaux.entrySet()) {
+                for (java.util.Map.Entry<Integer, Boolean> entree : leviersLocaux.entrySet()) {
                     p.setString(1, infos.getIdentifiantPartie());
                     p.setInt(2, niveauModifie);
                     p.setInt(3, entree.getKey());
@@ -297,7 +296,7 @@ public class GestionBDD {
         }
 
         int niveau = jeu.getNumeroNiveau();
-        Map<Integer, Boolean> leviers = new HashMap<>();
+        java.util.Map<Integer, Boolean> leviers = new HashMap<>();
         String selLevier = "SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau_id=?";
         try (PreparedStatement p = c.prepareStatement(selLevier)) {
             p.setString(1, infos.getIdentifiantPartie());
