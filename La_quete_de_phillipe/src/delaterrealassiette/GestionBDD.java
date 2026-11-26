@@ -15,27 +15,48 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/** Accès JDBC MariaDB et synchronisation facultative des objets du jeu. */
+/**
+ * Toutes les requêtes SQL du jeu. Les connexions viennent de ConnexionBDD.
+ *
+ * La classe a deux parties indépendantes :
+ *
+ * 1) Sauvegarde solo (méthodes d'instance) : enregistre et recharge l'état
+ *    d'un joueur (table joueur) et les tuiles modifiées de la carte (table
+ *    tuile). Remarque : cette partie n'est appelée nulle part pour l'instant.
+ *
+ * 2) Multijoueur (méthodes static) :
+ *    - heberger() / rejoindre() créent la partie ou y inscrivent le joueur
+ *      sous un identifiant de session unique (UUID) ;
+ *    - synchroniser(), appelée en boucle par SynchronisationBDD, publie la
+ *      position du joueur et ses actions (leviers, ingrédients), puis lit les
+ *      autres joueurs et l'état partagé qu'elle transmet au Jeu ;
+ *    - quitter() supprime la session à la fermeture.
+ *    Un joueur est considéré en ligne s'il a donné signe de vie
+ *    (dernier_ping) depuis moins de 15 secondes : un jeu qui plante
+ *    disparaît donc tout seul de la partie.
+ */
 public class GestionBDD {
+    /** Traces de synchronisation, activées avec -Dlaquete.sync.debug=true. */
     private static final boolean LOG_SYNC = Boolean.getBoolean("laquete.sync.debug");
-    // === MULTIJOUEUR === La gestion historique des tuiles et joueurs est conservée.
+    /** Identifiant de la carte sauvegardée (créée par CreationBDD). */
     private static final int ID_CARTE = 1;
     private Connection connexion;
     private Joueur joueur;
     private Map carte;
     private String pseudo;
 
-    /** Configure les objets utilisés par miseAJourImport et miseAJourExport. */
+    // ===================== 1) Sauvegarde solo =====================
+
+    /** Indique quel joueur et quelle carte importer / exporter. */
     public void configurer(Joueur joueur, String pseudo, Map carte) {
         this.joueur = joueur;
         this.pseudo = pseudo;
         this.carte = carte;
     }
 
-    /** Ouvre une connexion MariaDB. Paramètres système laquete.db.* ou variables LAQUETE_DB_* . */
+    /** Ouvre la connexion utilisée par la sauvegarde ; en cas d'échec, l'erreur est affichée en console. */
     public void demarrer() {
         try {
-            // Utilise le point d'entrée central qui vérifie/migre aussi le schéma multi.
             connexion = ConnexionBDD.getInstance().getConnection();
         } catch (SQLException e) {
             System.err.println("Impossible d'ouvrir ou de préparer la connexion MariaDB : "
@@ -45,6 +66,7 @@ public class GestionBDD {
         }
     }
 
+    /** Non utilisée : la lecture des paramètres est faite par ConnexionBDD. */
     private String parametre(String propriete, String variable, String valeurDefaut) {
         String valeur = System.getProperty(propriete);
         if (valeur == null || valeur.isEmpty()) {
@@ -53,7 +75,6 @@ public class GestionBDD {
         return (valeur == null || valeur.isEmpty()) ? valeurDefaut : valeur;
     }
 
-    /** Ferme la connexion JDBC si elle est ouverte. */
     public void arreter() {
         if (connexion != null) {
             try {
@@ -66,7 +87,11 @@ public class GestionBDD {
         }
     }
 
-    /** Charge l'état du joueur et, si fourni, les tuiles enregistrées de la carte. */
+    /**
+     * Recharge depuis la base les PV, le score, la position et le chef du
+     * joueur, puis les tuiles enregistrées de la carte. Le maximum de PV reste
+     * celui défini dans Joueur, même si la base indique autre chose.
+     */
     public void miseAJourImport() {
         if (connexion == null || joueur == null || pseudo == null) {
             return;
@@ -78,7 +103,6 @@ public class GestionBDD {
             try (ResultSet resultat = requete.executeQuery()) {
                 if (resultat.next()) {
                     int pvMax = resultat.getInt("points_de_vie_max");
-                    // Le maximum est immuable dans Joueur; on ajuste les PV disponibles sans dépasser sa limite.
                     int pvImportes = Math.min(resultat.getInt("points_de_vie"), joueur.getPointsDeVieMax());
                     joueur.modifierPointsDeVie(pvImportes - joueur.getPointsDeVie());
                     joueur.ajouterScore(resultat.getInt("score") - joueur.getScore());
@@ -125,7 +149,10 @@ public class GestionBDD {
         carte.effacerModifie();
     }
 
-    /** Enregistre l'état du joueur et le décor seulement lorsqu'il a été modifié. */
+    /**
+     * Enregistre le joueur, et la carte seulement si elle a changé, dans une
+     * seule transaction : soit tout est enregistré, soit rien (rollback).
+     */
     public void miseAJourExport() {
         if (connexion == null) {
             return;
@@ -160,6 +187,7 @@ public class GestionBDD {
         }
     }
 
+    /** Insère le joueur, ou met à jour sa ligne s'il existe déjà (même pseudo). */
     private void exporterJoueur() throws SQLException {
         String sql = "INSERT INTO joueur (pseudo, points_de_vie, points_de_vie_max, score, "
                 + "position_x, position_y, avatar_actuel) VALUES (?, ?, ?, ?, ?, ?, ?) "
@@ -179,6 +207,7 @@ public class GestionBDD {
         }
     }
 
+    /** Enregistre les dimensions de la carte puis toutes ses tuiles, envoyées en un seul lot (batch). */
     private void exporterCarte() throws SQLException {
         String majCarte = "UPDATE carte SET largeur = ?, hauteur = ?, taille_tuile = ? WHERE carte_id = ?";
         try (PreparedStatement requete = connexion.prepareStatement(majCarte)) {
@@ -203,7 +232,16 @@ public class GestionBDD {
             requete.executeBatch();
         }
     }
-    // === MULTIJOUEUR === Création d'une partie et inscription atomique du premier joueur.
+
+    // ===================== 2) Multijoueur =====================
+
+    /**
+     * Crée une partie et y inscrit l'hébergeur, en une seule transaction.
+     * Les leviers et ingrédients d'une ancienne partie au même code sont effacés.
+     *
+     * @return informations de connexion, avec un nouvel identifiant de session
+     * @throws SQLException si le code est déjà utilisé ou la base injoignable
+     */
     public static InfosPartie heberger(String pseudo, String code, String motDePasse) throws SQLException {
         String id = UUID.randomUUID().toString();
         try (Connection c = ConnexionBDD.getInstance().getConnection()) {
@@ -215,7 +253,6 @@ public class GestionBDD {
                     p.setString(2, motDePasse);
                     p.executeUpdate();
                 }
-                // Un nouvel hôte démarre avec des mécanismes et ingrédients vierges.
                 reinitialiserEtatsMultijoueur(c, code);
                 inscrire(c, id, code, pseudo);
                 c.commit();
@@ -231,11 +268,10 @@ public class GestionBDD {
         }
     }
 
-    /** Efface seulement les états de jeu de la salle, sans toucher au schéma historique. */
+    /** Vide l'état des leviers et ingrédients de la partie (les noms de tables sont fixes, le code est paramétré). */
     private static void reinitialiserEtatsMultijoueur(Connection c, String code) throws SQLException {
         String[] tables = {"levier_multi", "ingredient_multi"};
         for (String table : tables) {
-            // Les noms viennent de cette liste interne; le code de partie reste paramétré.
             try (PreparedStatement p = c.prepareStatement(
                     "DELETE FROM " + table + " WHERE code_partie=?")) {
                 p.setString(1, code);
@@ -244,7 +280,12 @@ public class GestionBDD {
         }
     }
 
-    // === MULTIJOUEUR === Vérifie la partie et son mot de passe avant l'inscription.
+    /**
+     * Vérifie que la partie existe avec ce mot de passe, puis inscrit le joueur.
+     *
+     * @throws SQLException si la partie ou le mot de passe est faux, ou si le
+     *                      pseudo est déjà pris dans cette partie
+     */
     public static InfosPartie rejoindre(String pseudo, String code, String motDePasse) throws SQLException {
         String id = UUID.randomUUID().toString();
         try (Connection c = ConnexionBDD.getInstance().getConnection()) {
@@ -257,12 +298,13 @@ public class GestionBDD {
         return new InfosPartie(pseudo, code, motDePasse, id);
     }
 
+    /** Ajoute la ligne du joueur dans joueur_multi (Etchebest, position de départ par défaut). */
     private static void inscrire(Connection c, String id, String code, String pseudo) throws SQLException {
         String sql = "INSERT INTO joueur_multi(session_id,code_partie,pseudo,position_x,position_y,avatar_actuel,dernier_ping) VALUES (?,?,?,32,64,'Etchebest',CURRENT_TIMESTAMP(3))";
         try (PreparedStatement p = c.prepareStatement(sql)) { p.setString(1,id); p.setString(2,code); p.setString(3,pseudo); p.executeUpdate(); }
     }
 
-    // === MULTIJOUEUR === Liste des participants en ligne destinée aux fenêtres de sélection.
+    /** @return pseudos des joueurs en ligne dans la partie, par ordre alphabétique */
     public static List<String> listerJoueurs(String code) throws SQLException {
         List<String> resultat = new ArrayList<>();
         String sql = "SELECT pseudo FROM joueur_multi WHERE code_partie=? AND dernier_ping >= CURRENT_TIMESTAMP(3) - INTERVAL 15 SECOND ORDER BY pseudo";
@@ -272,7 +314,15 @@ public class GestionBDD {
         return Collections.unmodifiableList(resultat);
     }
 
-    // === MULTIJOUEUR === Chaque instance du jeu possède un thread JDBC dédié.
+    /**
+     * Un cycle de synchronisation (appelé par le thread de SynchronisationBDD) :
+     * 1) publie la position et le chef du joueur, ce qui renouvelle aussi son
+     *    signe de vie (une session supprimée provoque une erreur) ;
+     * 2) lit les autres joueurs en ligne et remplace la liste partagée ;
+     * 3) synchronise les leviers, ingrédients et le niveau (synchroniserObjets).
+     *
+     * @param distants liste lue par l'affichage, modifiée sous synchronized
+     */
     static void synchroniser(Connection c, InfosPartie infos, Jeu jeu, List<JoueurDistant> distants) throws SQLException {
         Joueur j=jeu.getJoueur();
         String upd="UPDATE joueur_multi SET position_x=?,position_y=?,avatar_actuel=?,dernier_ping=CURRENT_TIMESTAMP(3) WHERE session_id=?";
@@ -290,11 +340,21 @@ public class GestionBDD {
         synchroniserObjets(c, infos, jeu);
     }
 
-    // === MULTIJOUEUR === Publication des actions locales, puis lecture de l'état partagé.
+    /**
+     * Échange de l'état du monde avec la base, en trois temps :
+     * 1) écriture : les actions locales en attente dans le Jeu (leviers,
+     *    ingrédients ramassés) sont publiées dans une transaction, puis
+     *    confirmées au Jeu une fois validées ;
+     * 2) niveau : la base garde le plus haut niveau atteint (GREATEST), si
+     *    bien qu'un joueur qui arrive au niveau 1 ne fait pas reculer la partie ;
+     * 3) lecture : leviers et ingrédients du niveau partagé, transmis au Jeu
+     *    qui les appliquera sur son propre thread.
+     */
     private static void synchroniserObjets(Connection c, InfosPartie infos, Jeu jeu) throws SQLException {
         boolean autoCommit = c.getAutoCommit();
         java.util.Map<Integer, java.util.Map<Integer, Boolean>> leviersConfirmes = new HashMap<>();
         java.util.Map<Integer, Set<String>> ingredientsConfirmes = new HashMap<>();
+        // 1) Écriture des actions locales
         try {
             c.setAutoCommit(false);
             for (Integer niveauModifie : jeu.getNiveauxModifies()) {
@@ -314,6 +374,7 @@ public class GestionBDD {
                                 + infos.getIdentifiantPartie() + ", résultat executeUpdate=" + resultat);
                     }
                 }
+                // INSERT IGNORE : un ingrédient déjà ramassé par un autre joueur n'est pas une erreur
                 String sqlIngredient = "INSERT IGNORE INTO ingredient_multi(code_partie,niveau_id,ingredient_id) VALUES (?,?,?)";
                 try (PreparedStatement p = c.prepareStatement(sqlIngredient)) {
                     for (String identifiant : ingredientsLocaux) {
@@ -336,13 +397,13 @@ public class GestionBDD {
         } finally {
             c.setAutoCommit(autoCommit);
         }
+        // Confirmation seulement après le commit : rien n'est perdu en cas d'échec
         for (Integer niveauModifie : leviersConfirmes.keySet()) {
             jeu.confirmerChangementsMultijoueur(niveauModifie,
                     leviersConfirmes.get(niveauModifie), ingredientsConfirmes.get(niveauModifie));
         }
 
-        // Le niveau est partagé et monotone : un client qui rejoint en niveau 1
-        // ne peut pas faire reculer une partie déjà arrivée aux niveaux suivants.
+        // 2) Niveau partagé : ne peut qu'augmenter
         int niveauLocal = jeu.getNumeroNiveau();
         String majNiveau = "UPDATE partie_multi SET niveau_courant=GREATEST(niveau_courant,?) WHERE code_partie=?";
         try (PreparedStatement p = c.prepareStatement(majNiveau)) {
@@ -364,6 +425,8 @@ public class GestionBDD {
         if (niveauPartage < 1 || niveauPartage > 3) {
             throw new SQLException("Niveau multijoueur invalide: " + niveauPartage);
         }
+
+        // 3) Lecture de l'état partagé du niveau
         int nbLeviers = 0;
         java.util.Map<Integer, Boolean> leviers = new HashMap<>();
         String selLevier = "SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau_id=?";
@@ -390,7 +453,10 @@ public class GestionBDD {
         jeu.appliquerEtatMultijoueur(niveauPartage, leviers, ingredients);
     }
 
-    // === MULTIJOUEUR === Retrait du seul jeton de session, sans effacer les autres.
+    /**
+     * Supprime uniquement la session de ce joueur. Si la base est injoignable,
+     * la session disparaîtra d'elle-même après 15 s sans signe de vie.
+     */
     static void quitter(InfosPartie infos) {
         if(infos==null || infos.getSessionId()==null) return;
         try(Connection c=ConnexionBDD.getInstance().getConnection(); PreparedStatement p=c.prepareStatement("DELETE FROM joueur_multi WHERE session_id=?")) {
@@ -398,6 +464,11 @@ public class GestionBDD {
         } catch(SQLException e) { System.err.println("Déconnexion BDD différée; expiration automatique active: "+e.getMessage()); }
     }
 
+    /**
+     * Dessine les autres joueurs avec leur pseudo au-dessus. On travaille sur
+     * une copie de la liste pour ne pas bloquer le thread de synchronisation
+     * pendant le dessin. Sans sprite, un rectangle de couleur par chef.
+     */
     static void dessinerDistants(Graphics2D g, Jeu jeu, List<JoueurDistant> liste) {
         List<JoueurDistant> copie;
         synchronized(liste){copie=new ArrayList<>(liste);}

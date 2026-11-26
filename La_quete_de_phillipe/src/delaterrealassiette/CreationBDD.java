@@ -6,15 +6,29 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/** Crée la base La Quête de Philippe, son schéma et les trois avatars jouables. */
+/**
+ * Programme à part (il a son propre main) qui prépare la base de données :
+ * création de toutes les tables, puis insertion des quatre chefs et de la
+ * carte principale.
+ *
+ * Il est sans danger de le relancer : les tables ne sont créées que si elles
+ * manquent (CREATE TABLE IF NOT EXISTS) et les insertions mettent à jour les
+ * lignes existantes (ON DUPLICATE KEY UPDATE). Les paramètres de connexion
+ * se lisent comme dans ConnexionBDD (propriété système, variable
+ * d'environnement, valeur par défaut).
+ *
+ * Tables : avatar, carte, tuile, joueur et monstre pour les données du jeu ;
+ * partie_multi, joueur_multi, levier_multi et ingredient_multi pour le
+ * multijoueur.
+ */
 public class CreationBDD {
     private static final String BASE = parametre("laquete.db.name", "LAQUETE_DB_NAME", "2026-2027_s1_vs1_tp2_la_quete_de_philippe");
 
+    /** Classe utilitaire : pas d'instance. */
     private CreationBDD() {
     }
 
     public static void main(String[] args) {
-        // === MULTIJOUEUR === La configuration JDBC est partagée avec les clients.
         String hote = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
         String port = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
         String utilisateur = parametre("laquete.db.user", "LAQUETE_DB_USER", "etudiant");
@@ -37,6 +51,10 @@ public class CreationBDD {
         }
     }
 
+    /**
+     * @return les requêtes de création des tables, dans un ordre qui respecte
+     *         les clés étrangères (une table référencée est créée avant)
+     */
     private static String[] definitions() {
         return new String[] {
             "CREATE TABLE IF NOT EXISTS avatar ("
@@ -61,7 +79,7 @@ public class CreationBDD {
             + "degats INT NOT NULL, hitbox_largeur INT NOT NULL, hitbox_hauteur INT NOT NULL, "
             + "chemin_image VARCHAR(255) NOT NULL"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            // === MULTIJOUEUR === Schéma neuf; les clients migrent aussi les tables préexistantes au démarrage.
+            // Multijoueur (mêmes définitions que dans ConnexionBDD)
             "CREATE TABLE IF NOT EXISTS partie_multi ("
             + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
             + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, niveau_courant INT NOT NULL DEFAULT 1"
@@ -73,7 +91,6 @@ public class CreationBDD {
             + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
             + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            // === MULTIJOUEUR === États communs des mécanismes et ingrédients par partie/niveau.
             "CREATE TABLE IF NOT EXISTS levier_multi ("
             + "code_partie VARCHAR(40) NOT NULL, niveau_id INT NOT NULL, levier_id INT NOT NULL, actif BOOLEAN NOT NULL, "
             + "PRIMARY KEY(code_partie,niveau_id,levier_id), "
@@ -93,6 +110,11 @@ public class CreationBDD {
         };
     }
 
+    /**
+     * Insère ou met à jour les quatre chefs. Colonnes : nom, vitesse, force
+     * de saut, largeur et hauteur de hitbox, sprite. Les valeurs réellement
+     * utilisées en jeu sont celles codées dans Joueur.
+     */
     private static void insererAvatars(Connection connexion) throws SQLException {
         String sql = "INSERT INTO avatar (nom, vitesse, force_saut, hitbox_largeur, hitbox_hauteur, chemin_image) "
                 + "VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE vitesse=VALUES(vitesse), "
@@ -118,6 +140,7 @@ public class CreationBDD {
         }
     }
 
+    /** Crée la carte n°1, utilisée par la sauvegarde des tuiles de GestionBDD. */
     private static void insererCarteInitiale(Connection connexion) throws SQLException {
         String sql = "INSERT INTO carte (carte_id, nom) VALUES (1, 'carte_principale') "
                 + "ON DUPLICATE KEY UPDATE nom=VALUES(nom)";
@@ -126,6 +149,7 @@ public class CreationBDD {
         }
     }
 
+    /** @return propriété système, sinon variable d'environnement, sinon valeur par défaut */
     private static String parametre(String propriete, String variable, String valeurDefaut) {
         String valeur = System.getProperty(propriete);
         if (valeur == null || valeur.isEmpty()) {

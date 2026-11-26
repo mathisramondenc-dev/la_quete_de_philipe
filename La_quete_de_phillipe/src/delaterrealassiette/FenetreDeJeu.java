@@ -20,30 +20,39 @@ import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 import javax.swing.Timer;
 
-/* ________________________________________________________________
- * ACTION : Fenêtre de la partie. Lance la boucle de jeu (un tic toutes
- *          les DUREE_TIC ms), lit le clavier et la souris et dessine.
- * [INFO] L'image logique 1920x1056 est mise à l'échelle dans le panneau
- * [INFO] Sans Jeu (mode debug), l'écran affiche l'état des 9 boutons
- *        et tourne à IMAGES_PAR_SECONDE_DEBUG images par seconde.
- * [INFO] Quand le numéro de niveau change, un écran de transition
- *        s'affiche (EcranTransition) et le jeu est en pause pendant ce temps.
- * [INFO] Quand le joueur meurt, le son CHEMIN_SON_MORT est joué une fois.
- * [INFO] Quand un niveau est terminé, le son CHEMIN_SON_NIVEAU est joué
- *        (au début de la transition, et aussi après le dernier niveau).
- * [DEPENDANCE] ClavierSouris fournit le tableau de booléens.
- *              Jeu reçoit ce tableau dans miseAJour et dessine dans rendu.
- *              Son et EcranTransition gèrent le son et la transition.
- * ________________________________________________________________ */
+/**
+ * Fenêtre de la partie : elle fait tourner la boucle de jeu et affiche le
+ * résultat.
+ *
+ * Boucle : un Timer Swing appelle actionPerformed() toutes les DUREE_TIC ms
+ * (25 ticks/s). Chaque tick lit les touches (ClavierSouris), fait avancer le
+ * Jeu, puis dessine. Tout se passe sur le thread Swing, donc pas de souci
+ * d'accès concurrent avec l'affichage.
+ *
+ * Rendu : on dessine toujours dans une image fixe de 1920x1056 (le
+ * framebuffer, taille de la carte), puis cette image est mise à l'échelle
+ * dans la fenêtre en gardant ses proportions (bandes noires si besoin). Le
+ * jeu ne dépend donc pas de la résolution de l'écran ; les clics souris
+ * sont reconvertis dans ce même repère.
+ *
+ * La fenêtre gère aussi ce qui entoure le Jeu : écran de transition entre
+ * niveaux (jeu en pause), sons de mort et de fin de niveau, écran de
+ * victoire, plein écran (F11) et affichage des autres joueurs en
+ * multijoueur. Sans Jeu (bouton Debug du menu), elle affiche l'état des
+ * touches et de la souris pour tester les entrées.
+ */
 public class FenetreDeJeu extends Fenetre implements ActionListener {
 
-    public static final int DUREE_TIC = 40; // ms, soit 25 tics par seconde
-    public static final int IMAGES_PAR_SECONDE_DEBUG = 24; // mode debug
-    public static final int LARGEUR_JEU = 60 * 32; // 1920 px
-    public static final int HAUTEUR_JEU = 33 * 32; // 1056 px
+    /** Durée d'un tick en ms (25 ticks par seconde). */
+    public static final int DUREE_TIC = 40;
+    public static final int IMAGES_PAR_SECONDE_DEBUG = 24;
+    /** Taille de l'image de jeu : 60 x 33 tuiles de 32 px. */
+    public static final int LARGEUR_JEU = 60 * 32;
+    public static final int HAUTEUR_JEU = 33 * 32;
     public static final String CHEMIN_SON_MORT = "sons/mort.wav";
     public static final String CHEMIN_SON_NIVEAU = "sons/niveau.wav";
 
+    /** Libellés de l'écran de debug, dans l'ordre des indices de ClavierSouris. */
     private static final String[] NOMS_BOUTONS = {
         "Haut (Z / flèche haut)",
         "Bas (S / flèche bas)",
@@ -58,13 +67,14 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     };
 
     private final Jeu jeu; // null en mode debug
-    private final InfosPartie infosPartie; // null hors multijoueur
+    private final InfosPartie infosPartie; // null en solo
     private final JPanel ecran;
+    /** Image fixe dans laquelle tout est dessiné avant mise à l'échelle. */
     private final BufferedImage framebuffer;
     private final Graphics2D contexte;
     private final ClavierSouris clavierSouris;
     private final Timer timer;
-    // === MULTIJOUEUR === Synchronisation isolée de l’EDT.
+    /** Échanges avec la base sur un thread séparé ; null en solo. */
     private final SynchronisationBDD synchronisationBDD;
     private boolean pleinEcran;
     private Rectangle limitesFenetreAvantPleinEcran;
@@ -73,33 +83,35 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
     private boolean[] etatBoutons = new boolean[ClavierSouris.NB_BOUTONS];
     private long numeroTic = 0;
 
-    // Transition entre niveaux et son de mort
     private final EcranTransition ecranTransition = new EcranTransition();
     private final Son sonMort;
     private final Son sonNiveau;
-    private int niveauPrecedent;          // pour détecter un changement de niveau
-    private boolean joueurEtaitMort = false; // pour jouer le son une seule fois
+    // États du tick précédent, pour ne réagir qu'aux changements
+    private int niveauPrecedent;
+    private boolean joueurEtaitMort = false;
 
-    // Mesure des images par seconde (affichée en mode debug)
+    // Mesure des images par seconde (écran de debug)
     private long debutBoucle;
     private long debutSeconde;
     private int imagesDansLaSeconde = 0;
     private int imagesParSecondeMesurees = 0;
 
-    /* ________________________________________________________________
-     * ACTION : Construit la fenêtre, le framebuffer et branche les écouteurs.
-     * [INFO] La boucle ne démarre qu'avec demarrer().
-     * ________________________________________________________________ */
+    /**
+     * Fenêtre de partie solo.
+     *
+     * @param jeu partie à afficher, ou null pour l'écran de debug
+     */
     public FenetreDeJeu(Jeu jeu) {
         this(jeu, null);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Construit la fenêtre pour une partie multijoueur.
-     * [INFO] Le pseudo et l'identifiant de la partie sont affichés
-     *        en haut à gauche de l'écran.
-     * [DEPENDANCE] Appelé par FenetreConnexion.
-     * ________________________________________________________________ */
+    /**
+     * Construit la fenêtre, l'image de rendu et branche clavier, souris et
+     * F11. La boucle ne démarre qu'à l'appel de demarrer().
+     *
+     * @param infosPartie connexion multijoueur (avec session), ou null en solo ;
+     *                    le pseudo et la partie sont alors affichés à l'écran
+     */
     public FenetreDeJeu(Jeu jeu, InfosPartie infosPartie) {
         super();
         this.jeu = jeu;
@@ -111,7 +123,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                     + " - partie " + infosPartie.getIdentifiantPartie());
         }
 
-        // Panneau d'affichage mis à l'échelle
+        // Panneau qui recopie le framebuffer, agrandi et centré
         ecran = new JPanel() {
             @Override
             protected void paintComponent(Graphics graphismes) {
@@ -137,14 +149,12 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         contexte.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-        // Entrées clavier et souris
         clavierSouris = new ClavierSouris();
         addKeyListener(clavierSouris);
         ConvertisseurSouris convertisseurSouris = new ConvertisseurSouris();
         ecran.addMouseListener(convertisseurSouris);
         ecran.addMouseMotionListener(convertisseurSouris);
 
-        // Raccourci plein écran
         ecran.getInputMap(JPanel.WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0), "basculerPleinEcran");
         ecran.getActionMap().put("basculerPleinEcran", new AbstractAction() {
@@ -158,7 +168,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         sonMort = new Son(CHEMIN_SON_MORT);
         sonNiveau = new Son(CHEMIN_SON_NIVEAU);
         niveauPrecedent = (jeu != null) ? jeu.getNumeroNiveau() : 0;
-        // === MULTIJOUEUR === Nettoie la présence quand la fenêtre est fermée.
+        // À la fermeture : arrêt de la boucle et retrait du joueur de la partie en ligne
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override public void windowClosing(java.awt.event.WindowEvent e) { arreter(); }
         });
@@ -168,9 +178,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         setExtendedState(getExtendedState() | MAXIMIZED_BOTH);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Calcule la zone de rendu centrée en conservant le ratio logique.
-     * ________________________________________________________________ */
+    /** @return zone de la fenêtre où dessiner le framebuffer : la plus grande possible, centrée, proportions gardées */
     private Rectangle calculerZoneAffichage() {
         int largeurEcran = ecran.getWidth();
         int hauteurEcran = ecran.getHeight();
@@ -183,9 +191,11 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                 largeurAffichage, hauteurAffichage);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Bascule entre la fenêtre maximisée et le plein écran sans bordure.
-     * ________________________________________________________________ */
+    /**
+     * Alterne entre fenêtre maximisée et vrai plein écran sans bordure (F11).
+     * Swing impose de masquer la fenêtre (dispose) avant de retirer ou remettre
+     * ses bordures.
+     */
     private void basculerPleinEcran() {
         GraphicsDevice appareilAffichage = GraphicsEnvironment
                 .getLocalGraphicsEnvironment().getDefaultScreenDevice();
@@ -209,11 +219,11 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         ecran.requestFocusInWindow();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Convertit les coordonnées souris vers l'espace logique puis
-     *          transmet l'événement à ClavierSouris.
-     * [DEPENDANCE] ClavierSouris (reste inchangé)
-     * ________________________________________________________________ */
+    /**
+     * Intermédiaire entre la souris et ClavierSouris : convertit la position
+     * du clic (pixels de la fenêtre) en position dans l'image du jeu, puis
+     * transmet l'événement.
+     */
     private class ConvertisseurSouris extends MouseAdapter {
 
         private MouseEvent convertirEvenementSouris(MouseEvent evenement) {
@@ -264,10 +274,10 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Démarre la boucle de jeu et donne le focus clavier.
-     * [INFO] Sans le focus, les touches ne sont pas reçues.
-     * ________________________________________________________________ */
+    /**
+     * Démarre la boucle (et la synchronisation en multijoueur). Prend le
+     * focus clavier, sans lequel aucune touche n'est reçue.
+     */
     public void demarrer() {
         requestFocus();
         debutBoucle = System.currentTimeMillis();
@@ -276,23 +286,16 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
             timer.setDelay(1000 / IMAGES_PAR_SECONDE_DEBUG);
         }
         timer.start();
-        // === MULTIJOUEUR ===
         if (synchronisationBDD != null) synchronisationBDD.demarrer();
     }
 
-    /* ________________________________________________________________
-     * ACTION : En mode debug, règle le délai avant le prochain tic pour
-     *          avoir exactement IMAGES_PAR_SECONDE_DEBUG images par seconde.
-     * ________________________________________________________________ */
+    /** Debug : recalcule le délai du Timer pour tenir exactement IMAGES_PAR_SECONDE_DEBUG images/s. */
     private void reglerProchainTicDebug() {
         long prochaineImage = debutBoucle + (numeroTic + 1) * 1000 / IMAGES_PAR_SECONDE_DEBUG;
         long attente = prochaineImage - System.currentTimeMillis();
         timer.setDelay((int) Math.max(1, attente));
     }
 
-    /* ________________________________________________________________
-     * ACTION : Compte les images affichées pendant chaque seconde.
-     * ________________________________________________________________ */
     private void mesurerImagesParSeconde() {
         imagesDansLaSeconde++;
         long maintenant = System.currentTimeMillis();
@@ -303,21 +306,22 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Arrête la boucle de jeu.
-     * ________________________________________________________________ */
+    /** Arrête la boucle, libère les sons et quitte la partie en ligne. */
     public void arreter() {
         timer.stop();
         sonMort.fermer();
         sonNiveau.fermer();
-        // === MULTIJOUEUR ===
         if (synchronisationBDD != null) synchronisationBDD.arreter();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Un tic de jeu : lecture des entrées, mise à jour, rendu.
-     * [DEPENDANCE] Appelée par le Timer toutes les DUREE_TIC ms.
-     * ________________________________________________________________ */
+    /**
+     * Un tick, appelé par le Timer. Selon l'état :
+     * - transition en cours : le jeu est figé, seul l'écran de transition avance ;
+     * - partie en cours : mise à jour du Jeu, détection de la mort et du
+     *   changement de niveau (qui lance la transition), puis rendu ;
+     * - victoire : son, arrêt de la boucle et écran « BRAVO ! » ;
+     * - pas de Jeu : écran de debug.
+     */
     @Override
     public void actionPerformed(ActionEvent evenement) {
         numeroTic++;
@@ -325,7 +329,6 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         etatBoutons = clavierSouris.getEtatBoutons();
 
         if (jeu != null && ecranTransition.estActive()) {
-            // Jeu en pause : on affiche seulement la transition
             ecranTransition.avancer(etatBoutons[ClavierSouris.BOUTON_SAUTER]);
             jeu.rendu(contexte);
             ecranTransition.dessiner(contexte, LARGEUR_JEU, HAUTEUR_JEU);
@@ -340,14 +343,13 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
                 }
             }
             if (jeu.isVictoire()) {
-                sonNiveau.jouer(); // dernier niveau terminé
+                sonNiveau.jouer();
                 timer.stop();
                 dessinerVictoire();
             } else {
                 jeu.rendu(contexte);
                 jeu.dessinerIngredients(contexte);
                 jeu.getInventaireRecette().dessiner(contexte, LARGEUR_JEU);
-                // === MULTIJOUEUR ===
                 if (synchronisationBDD != null) GestionBDD.dessinerDistants(contexte, jeu, synchronisationBDD.getJoueursDistants());
             }
         } else {
@@ -362,11 +364,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         ecran.repaint();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Joue le son de mort quand le joueur vient de mourir.
-     * [INFO] Le joueur reste mort pendant plusieurs tics avant de
-     *        réapparaître : le son n'est joué qu'au premier tic.
-     * ________________________________________________________________ */
+    /** Joue le son de mort une seule fois, au tick où le joueur meurt (il reste mort plusieurs ticks). */
     private void verifierMortDuJoueur() {
         boolean joueurMort = jeu.getJoueur().estMort();
         if (joueurMort && !joueurEtaitMort) {
@@ -375,10 +373,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         joueurEtaitMort = joueurMort;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Démarre l'écran de transition si le niveau a changé.
-     * [INFO] Retourne true si une transition vient de démarrer.
-     * ________________________________________________________________ */
+    /** @return true si le numéro de niveau vient de changer ; l'écran de transition et le son sont alors lancés */
     private boolean verifierChangementDeNiveau() {
         int niveauActuel = jeu.getNumeroNiveau();
         if (niveauActuel == niveauPrecedent) {
@@ -391,9 +386,6 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         return true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Affiche l'écran de victoire final.
-     * ________________________________________________________________ */
     private void dessinerVictoire() {
         contexte.setColor(new Color(18, 20, 28));
         contexte.fillRect(0, 0, LARGEUR_JEU, HAUTEUR_JEU);
@@ -406,10 +398,7 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         contexte.drawString(texte, positionX, positionY);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Affiche le pseudo et l'identifiant de la partie en haut
-     *          à gauche, par-dessus le jeu.
-     * ________________________________________________________________ */
+    /** Encadré en haut à gauche : pseudo et code de la partie. */
     private void renduInfosPartie() {
         String lignePseudo = infosPartie.getPseudo();
         String lignePartie = "Partie " + infosPartie.getIdentifiantPartie();
@@ -423,16 +412,12 @@ public class FenetreDeJeu extends Fenetre implements ActionListener {
         contexte.drawString(lignePartie, 14, 42);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'état des boutons lu au dernier tic.
-     * ________________________________________________________________ */
+    /** @return copie de l'état des boutons lu au dernier tick */
     public boolean[] getEtatBoutons() {
         return etatBoutons.clone();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Affiche l'état du clavier et de la souris (mode debug).
-     * ________________________________________________________________ */
+    /** Écran de debug : numéro de tick, images/s, souris et état de chaque bouton. */
     private void renduDebug(boolean clic) {
         contexte.setColor(new Color(120, 170, 220));
         contexte.fillRect(0, 0, LARGEUR_JEU, HAUTEUR_JEU);

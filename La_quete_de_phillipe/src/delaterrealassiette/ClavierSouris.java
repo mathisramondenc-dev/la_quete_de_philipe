@@ -1,4 +1,3 @@
-// ClavierSouris.java
 package delaterrealassiette;
 
 import java.awt.event.KeyEvent;
@@ -7,27 +6,26 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 
-/* ________________________________________________________________
- * ACTION : Écoute le clavier et la souris et fournit, à chaque tic,
- *          l'état des 10 boutons du jeu sous forme de tableau de booléens.
- * [INFO] Les indices du tableau (BOUTON_...) sont les mêmes que ceux
- *        définis en haut de Joueur (toucheHaut = 0, ..., toucheSauter = 8),
- *        mais cette classe ne dépend pas de Joueur : on peut la tester seule.
- * [INFO] BOUTON_CHEF4 (indice 9, touche 4) sert au 4e chef : Joueur doit
- *        ajouter une constante touche... = 9 pour l'utiliser.
- * [INFO] Un bouton vaut true s'il est enfoncé au moment du tic OU s'il a
- *        été appuyé entre les deux tics (un appui très court n'est pas perdu).
- * [INFO] Si plusieurs touches de chef sont actives, seule la dernière
- *        appuyée reste à true.
- * [DEPENDANCE] FenetreDeJeu l'ajoute comme écouteur et appelle
- *              getEtatBoutons() à chaque tic. Joueur reçoit le tableau
- *              dans miseAJourIntentions().
- * ________________________________________________________________ */
+/**
+ * Écoute le clavier et la souris et fournit, une fois par tick, l'état des
+ * 10 « boutons » du jeu sous forme d'un tableau de booléens.
+ *
+ * Pourquoi un tableau plutôt que des événements : Swing envoie les touches
+ * à n'importe quel moment, alors que le jeu avance par ticks. On mémorise
+ * donc les événements au fil de l'eau, puis getEtatBoutons() en fait une
+ * photo à chaque tick. Un bouton vaut true s'il est enfoncé au moment du
+ * tick OU s'il a été appuyé depuis le tick précédent : un appui très bref
+ * n'est jamais perdu.
+ *
+ * Les indices BOUTON_* sont identiques aux constantes touche* de Joueur,
+ * mais cette classe ne dépend pas de Joueur et peut être testée seule
+ * (écran de debug). Plusieurs touches sont acceptées par action : ZQSD ou
+ * flèches, chiffres du clavier ou du pavé numérique.
+ */
 public class ClavierSouris implements KeyListener, MouseListener, MouseMotionListener {
 
     public static final int NB_BOUTONS = 10;
 
-    // Indices des boutons dans le tableau (mêmes valeurs que dans Joueur)
     public static final int BOUTON_HAUT = 0;
     public static final int BOUTON_BAS = 1;
     public static final int BOUTON_GAUCHE = 2;
@@ -42,7 +40,7 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
     private final boolean[] enfonce = new boolean[NB_BOUTONS];
     private final boolean[] appuyeDepuisDernierTic = new boolean[NB_BOUTONS];
 
-    // Indice (dans le tableau) de la dernière touche de chef appuyée, -1 si aucune
+    /** Dernière touche de chef appuyée (indice BOUTON_*), -1 si aucune. */
     private int dernierChef = -1;
 
     private int sourisX;
@@ -50,10 +48,7 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
     private boolean sourisEnfoncee;
     private boolean clicDepuisDernierTic;
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'indice du bouton associé à une touche, -1 sinon.
-     * [INFO] Deux touches possibles par direction (ZQSD ou flèches).
-     * ________________________________________________________________ */
+    /** @return indice BOUTON_* de la touche, ou -1 si elle n'est pas utilisée par le jeu */
     private int boutonDeLaTouche(int codeTouche) {
         switch (codeTouche) {
             case KeyEvent.VK_Z:
@@ -89,9 +84,6 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si un indice correspond à une touche de chef.
-     * ________________________________________________________________ */
     private static boolean estToucheChef(int bouton) {
         return bouton == BOUTON_PHILIPPE
                 || bouton == BOUTON_CYRIL
@@ -99,11 +91,12 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
                 || bouton == BOUTON_CHEF4;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'état des 10 boutons entre le tic précédent et
-     *          maintenant, puis prépare le tic suivant.
-     * [INFO] À appeler UNE seule fois par tic.
-     * ________________________________________________________________ */
+    /**
+     * Photo des boutons depuis le tick précédent, puis remise à zéro des
+     * appuis mémorisés. À appeler une seule fois par tick.
+     *
+     * @return nouveau tableau de NB_BOUTONS booléens
+     */
     public synchronized boolean[] getEtatBoutons() {
         boolean[] etat = new boolean[NB_BOUTONS];
         for (int i = 0; i < NB_BOUTONS; i++) {
@@ -115,10 +108,10 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         return etat;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ne laisse à true que la dernière touche de chef appuyée.
-     * [INFO] Évite que Joueur reçoive deux changements de chef au même tic.
-     * ________________________________________________________________ */
+    /**
+     * Si plusieurs touches de chef sont actives, ne garde que la dernière
+     * appuyée : le joueur ne reçoit jamais deux changements de chef au même tick.
+     */
     private void verifierDernierChef(boolean[] etat) {
         boolean dernierChefActif = dernierChef != -1 && etat[dernierChef];
 
@@ -132,11 +125,8 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         }
     }
 
-    // ===================== Clavier =====================
+    // ----- Clavier -----
 
-    /* ________________________________________________________________
-     * ACTION : Mémorise l'appui d'une touche du jeu.
-     * ________________________________________________________________ */
     @Override
     public synchronized void keyPressed(KeyEvent evenement) {
         int bouton = boutonDeLaTouche(evenement.getKeyCode());
@@ -150,9 +140,6 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Mémorise le relâchement d'une touche du jeu.
-     * ________________________________________________________________ */
     @Override
     public synchronized void keyReleased(KeyEvent evenement) {
         int bouton = boutonDeLaTouche(evenement.getKeyCode());
@@ -163,10 +150,9 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
 
     @Override
     public void keyTyped(KeyEvent evenement) {
-        // Rien à faire ici
     }
 
-    // ===================== Souris =====================
+    // ----- Souris (utilisée par l'écran de debug) -----
 
     @Override
     public synchronized void mousePressed(MouseEvent evenement) {
@@ -192,24 +178,20 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         mouseMoved(evenement);
     }
 
+    /** Le clic est déjà pris en compte dans mousePressed. */
     @Override
     public void mouseClicked(MouseEvent evenement) {
-        // Géré par mousePressed
     }
 
     @Override
     public void mouseEntered(MouseEvent evenement) {
-        // Rien à faire ici
     }
 
     @Override
     public void mouseExited(MouseEvent evenement) {
-        // Rien à faire ici
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la position de la souris dans la fenêtre (pixels).
-     * ________________________________________________________________ */
+    /** @return abscisse de la souris dans l'image du jeu (pixels) */
     public synchronized int getSourisX() {
         return sourisX;
     }
@@ -218,11 +200,10 @@ public class ClavierSouris implements KeyListener, MouseListener, MouseMotionLis
         return sourisY;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le bouton de la souris est enfoncé ou a été
-     *          cliqué depuis le dernier tic.
-     * [INFO] À lire AVANT getEtatBoutons(), qui remet le clic à zéro.
-     * ________________________________________________________________ */
+    /**
+     * @return true si le bouton est enfoncé ou a été cliqué depuis le dernier
+     *         tick. À lire avant getEtatBoutons(), qui remet le clic à zéro.
+     */
     public synchronized boolean isClicSouris() {
         return sourisEnfoncee || clicDepuisDernierTic;
     }

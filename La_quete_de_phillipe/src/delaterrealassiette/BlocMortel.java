@@ -3,40 +3,35 @@ package delaterrealassiette;
 import java.awt.Color;
 import java.awt.Graphics2D;
 
-/* ________________________________________________________________
- * ACTION : Représente une zone traversable qui tue le joueur au contact.
- * ________________________________________________________________ */
+/**
+ * Zone piège (lave, pics...) qui tue le joueur dès qu'il la touche.
+ *
+ * Elle ne bloque pas les déplacements : le joueur entre dedans et c'est la
+ * classe Jeu qui détecte le contact et déclenche la mort. Le sprite est
+ * répété tuile par tuile pour couvrir des zones de toutes tailles sans
+ * déformation.
+ */
 public class BlocMortel extends ObjetInteractif {
     private static final String cheminImageMortelle = "images/bloc_mortel.png";
 
-    /* ________________________________________________________________
-     * ACTION : Initialise la position et les dimensions en pixels.
-     * ________________________________________________________________ */
+    /** Position et dimensions en pixels (converties depuis les tuiles par Map). */
     public BlocMortel(Map map, int positionX, int positionY, int largeur, int hauteur) {
         super(map, positionX, positionY);
         this.hitbox = new int[]{largeur, hauteur};
         this.cheminImage = cheminImageMortelle;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique que le sprite remplit la zone par répétition.
-     * ________________________________________________________________ */
     @Override
     protected boolean estImageRepeteParTuile() {
         return true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la taille des tuiles utilisées pour le dessin.
-     * ________________________________________________________________ */
     @Override
     protected int getTailleTuileDessin() {
         return map.getTailleTuile();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Remplit la zone en rouge si le sprite est absent.
-     * ________________________________________________________________ */
+    /** Sans image : zone pleine rouge. */
     @Override
     protected void dessinerImageManquante(Graphics2D contexte, int positionEcranX,
             int positionEcranY, int largeurZone, int hauteurZone) {

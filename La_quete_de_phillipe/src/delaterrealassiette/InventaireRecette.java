@@ -9,18 +9,22 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/* ________________________________________________________________
- * ACTION : Suit les quantités requises et ramassées pour la recette du niveau.
- * [DEPENDANCE] Jeu fournit les ingrédients présents dans le niveau.
- * ________________________________________________________________ */
+/**
+ * Recette du niveau : quels ingrédients ramasser, combien, et où en est le
+ * joueur.
+ *
+ * La recette n'est pas écrite à part : elle est déduite des ingrédients
+ * posés dans le niveau (deux tomates sur la carte = deux tomates requises).
+ * Le niveau est réussi quand toutes les quantités requises sont atteintes.
+ *
+ * La classe dessine aussi le panneau récapitulatif en haut à droite de
+ * l'écran (icône grisée tant que l'ingrédient n'a pas été trouvé).
+ */
 public class InventaireRecette {
     private final EnumMap<TypeIngredient, Integer> quantitesRequises = new EnumMap<>(TypeIngredient.class);
     private final EnumMap<TypeIngredient, Integer> quantitesRamassees = new EnumMap<>(TypeIngredient.class);
 
-    /* ________________________________________________________________
-     * ACTION : Initialise l’inventaire à partir des ingrédients du niveau.
-     * [INFO] Seuls les types présents sont conservés, avec une quantité positive.
-     * ________________________________________________________________ */
+    /** @param ingredients ingrédients présents dans le niveau : ils définissent la recette */
     public InventaireRecette(List<Ingredient> ingredients) {
         for (Ingredient ingredient : ingredients) {
             TypeIngredient typeIngredient = ingredient.getTypeIngredient();
@@ -32,9 +36,7 @@ public class InventaireRecette {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ajoute une unité ramassée, sans dépasser la quantité requise.
-     * ________________________________________________________________ */
+    /** Compte un ingrédient ramassé, sans dépasser la quantité requise. */
     public void ajouter(TypeIngredient typeIngredient) {
         int quantiteRamassee = quantitesRamassees.getOrDefault(typeIngredient, 0);
         int quantiteRequise = quantitesRequises.getOrDefault(typeIngredient, 0);
@@ -43,9 +45,7 @@ public class InventaireRecette {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si tous les ingrédients requis ont été ramassés.
-     * ________________________________________________________________ */
+    /** @return true si tous les ingrédients requis ont été ramassés */
     public boolean estComplete() {
         for (Map.Entry<TypeIngredient, Integer> entree : quantitesRequises.entrySet()) {
             if (quantitesRamassees.getOrDefault(entree.getKey(), 0) < entree.getValue()) {
@@ -55,38 +55,30 @@ public class InventaireRecette {
         return true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le nombre requis pour un type d’ingrédient.
-     * ________________________________________________________________ */
     public int getQuantiteRequise(TypeIngredient typeIngredient) {
         return quantitesRequises.getOrDefault(typeIngredient, 0);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le nombre ramassé pour un type d’ingrédient.
-     * ________________________________________________________________ */
     public int getQuantiteRamassee(TypeIngredient typeIngredient) {
         return quantitesRamassees.getOrDefault(typeIngredient, 0);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne une copie des quantités requises.
-     * ________________________________________________________________ */
+    /** @return copie, modifiable sans effet sur l'inventaire */
     public Map<TypeIngredient, Integer> getQuantitesRequises() {
         return new EnumMap<>(quantitesRequises);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne une copie des quantités ramassées.
-     * ________________________________________________________________ */
+    /** @return copie, modifiable sans effet sur l'inventaire */
     public Map<TypeIngredient, Integer> getQuantitesRamassees() {
         return new EnumMap<>(quantitesRamassees);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine le récapitulatif des types d’ingrédients requis.
-     * [INFO] La hauteur du panneau dépend du nombre de types requis.
-     * ________________________________________________________________ */
+    /**
+     * Dessine le panneau de recette en haut à droite : une ligne par type
+     * (icône + "Nom ramassé/requis"), hauteur adaptée au nombre de types.
+     *
+     * @param largeurEcran largeur de la zone de dessin, pour l'aligner à droite
+     */
     public void dessiner(Graphics2D contexte, int largeurEcran) {
         int hauteurPanneau = 18 + quantitesRequises.size() * 42;
         int largeurPanneau = 240;
@@ -105,6 +97,7 @@ public class InventaireRecette {
             int positionLigneY = positionY + 32 + numeroLigne * 42;
             BufferedImage image = ElementDeJeu.chargerImageDepuisCache(typeIngredient.getCheminSprite());
             if (image != null) {
+                // Pas encore trouvé : icône sur fond gris et semi-transparente
                 if (getQuantiteRamassee(typeIngredient) == 0) {
                     contexte.setColor(Color.GRAY);
                     contexte.fillRect(positionX + 12, positionLigneY - 20, 30, 30);
