@@ -184,6 +184,7 @@ public class Map {
                         int ligneGrille = Integer.parseInt(champs[2]);
 
                         // Largeur : 4e mot de la ligne s'il existe, sinon 1 tuile
+                        // (on teste la longueur pour ne pas lire une case qui n'existe pas)
                         int largeurMortelle;
                         if (champs.length > 3) {
                             largeurMortelle = Integer.parseInt(champs[3]);
@@ -288,13 +289,22 @@ public class Map {
      * [INFO] La position vaut null si le niveau ne déclare pas SPAWN.
      * ________________________________________________________________ */
     public int[] getPositionDepart() {
-        return positionDepart == null ? null : positionDepart.clone();
+        // Pas de section SPAWN dans le fichier : on renvoie null,
+        // Jeu utilisera alors sa position de départ par défaut
+        if (positionDepart == null) {
+            return null;
+        }
+        // clone() renvoie une COPIE du tableau {x, y} : si l'appelant la modifie,
+        // la position de départ enregistrée dans la map ne change pas
+        return positionDepart.clone();
     }
 
     /* ________________________________________________________________
      * ACTION : Retourne les monstres déclarés dans le niveau.
      * ________________________________________________________________ */
     public List<Monstre> getMonstres() {
+        // unmodifiableList : l'appelant peut lire la liste mais pas y ajouter
+        // ou retirer de monstre (seule la map remplit cette liste)
         return Collections.unmodifiableList(monstres);
     }
 
@@ -302,12 +312,17 @@ public class Map {
      * ACTION : Retourne les leviers définis dans le niveau.
      * ________________________________________________________________ */
     public List<Levier> getLeviers() {
+        // Les leviers sont mélangés aux autres objets du décor (échelles, portes...)
+        // dans objetsDecor : on construit une nouvelle liste avec seulement eux
         List<Levier> leviers = new ArrayList<>();
         for (ObjetInteractif objet : objetsDecor) {
+            // instanceof teste si l'objet est un Levier
             if (objet instanceof Levier) {
+                // (Levier) objet : on indique à Java que cet objet est bien un Levier
                 leviers.add((Levier) objet);
             }
         }
+        // Liste en lecture seule
         return Collections.unmodifiableList(leviers);
     }
 
@@ -315,12 +330,14 @@ public class Map {
      * ACTION : Retourne les blocs de porte définis dans le niveau.
      * ________________________________________________________________ */
     public List<BlocPorte> getBlocsPorte() {
+        // Même principe que getLeviers : on ne garde que les objets BlocPorte
         List<BlocPorte> blocsPorte = new ArrayList<>();
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof BlocPorte) {
                 blocsPorte.add((BlocPorte) objet);
             }
         }
+        // Liste en lecture seule
         return Collections.unmodifiableList(blocsPorte);
     }
 
@@ -328,12 +345,14 @@ public class Map {
      * ACTION : Retourne les blocs mortels définis dans le niveau.
      * ________________________________________________________________ */
     public List<BlocMortel> getBlocsMortels() {
+        // Même principe que getLeviers : on ne garde que les objets BlocMortel
         List<BlocMortel> blocsMortels = new ArrayList<>();
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof BlocMortel) {
                 blocsMortels.add((BlocMortel) objet);
             }
         }
+        // Liste en lecture seule
         return Collections.unmodifiableList(blocsMortels);
     }
 
@@ -341,6 +360,8 @@ public class Map {
      * ACTION : Retourne les caisses présentes sur la carte.
      * ________________________________________________________________ */
     public List<Caisse> getCaisses() {
+        // Les caisses ont leur propre liste (elles bougent) : on la renvoie
+        // directement, en lecture seule
         return Collections.unmodifiableList(caisses);
     }
 
@@ -348,9 +369,13 @@ public class Map {
      * ACTION : Indique si une hitbox peut se poser sur un sol ou une échelle.
      * ________________________________________________________________ */
     public boolean aUnSolSous(int x, int y, int largeurHitbox, int hauteurHitbox) {
+        // On teste la hitbox décalée d'1 pixel vers le bas (y - 1) :
+        // si elle touche quelque chose de solide (tuile, porte fermée, caisse),
+        // c'est qu'il y a un sol juste sous les pieds
         if (collisionHitbox(x, y - 1, largeurHitbox, hauteurHitbox)) {
             return true;
         }
+        // Sinon, le haut d'une échelle compte aussi comme un sol
         return estSurSommetEchelle(x, y, largeurHitbox);
     }
 
@@ -360,31 +385,46 @@ public class Map {
     public boolean estSurSommetEchelle(int x, int y, int largeurHitbox) {
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof Echelle) {
+                // Hauteur du sommet de l'échelle : son bas + sa hauteur (hitbox[1])
                 int haut = objet.getPositionY() + objet.getHitbox()[1];
+                // Les pieds (y) doivent être EXACTEMENT au niveau du sommet,
+                // et la hitbox doit chevaucher l'échelle horizontalement :
+                // - x < bord droit de l'échelle
+                // - bord droit de la hitbox (x + largeur) > bord gauche de l'échelle
                 if (y == haut && x < objet.getPositionX() + objet.getHitbox()[0]
                         && x + largeurHitbox > objet.getPositionX()) {
                     return true;
                 }
             }
         }
+        // Aucune échelle sous les pieds
         return false;
     }
 
     /* ________________________________________________________________
      * ACTION : Détecte le franchissement descendant du sommet d'une échelle.
+     * [INFO] Retourne la hauteur du sommet franchi, ou Integer.MIN_VALUE
+     *        si aucun sommet n'est traversé.
      * ________________________________________________________________ */
     public int getSommetEchelleFranchi(int x, int anciennePositionY, int nouvellePositionY,
             int largeurHitbox) {
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof Echelle) {
+                // Hauteur du sommet de l'échelle
                 int haut = objet.getPositionY() + objet.getHitbox()[1];
+                // L'entité était au-dessus (ou pile sur) le sommet et passe en dessous
+                // pendant ce déplacement, tout en étant alignée avec l'échelle :
+                // elle est en train de traverser le sommet en tombant
                 if (anciennePositionY >= haut && nouvellePositionY < haut
                         && x < objet.getPositionX() + objet.getHitbox()[0]
                         && x + largeurHitbox > objet.getPositionX()) {
+                    // On renvoie la hauteur du sommet pour qu'Entite
+                    // y arrête la chute (sauf si le joueur veut descendre)
                     return haut;
                 }
             }
         }
+        // Valeur spéciale qui signifie « aucun sommet franchi »
         return Integer.MIN_VALUE;
     }
 
@@ -393,9 +433,12 @@ public class Map {
      * ________________________________________________________________ */
     public boolean estSurOuDansEchelle(int x, int y, int largeurHitbox,
             int hauteurHitbox) {
+        // Cas 1 : la hitbox est DANS une échelle (elle la chevauche)
         if (chevaucheEchelle(x, y, largeurHitbox, hauteurHitbox)) {
             return true;
         }
+        // Cas 2 : la hitbox est posée SUR le sommet d'une échelle
+        // (même test que estSurSommetEchelle)
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof Echelle) {
                 int haut = objet.getPositionY() + objet.getHitbox()[1];
@@ -405,6 +448,7 @@ public class Map {
                 }
             }
         }
+        // Ni dans ni sur une échelle
         return false;
     }
 
@@ -413,49 +457,70 @@ public class Map {
      * ________________________________________________________________ */
     public boolean chevaucheEchelle(int x, int y, int largeurHitbox, int hauteurHitbox) {
         for (ObjetInteractif objet : objetsDecor) {
+            // chevaucheRectangle teste si le rectangle (x, y, largeur, hauteur)
+            // recouvre au moins un pixel de l'échelle
             if (objet instanceof Echelle
                     && objet.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
                 return true;
             }
         }
+        // Aucune échelle touchée
         return false;
     }
 
     /* ________________________________________________________________
      * ACTION : Essaie de pousser une caisse et les caisses qui la précèdent.
+     * [INFO] direction vaut -1 (gauche) ou 1 (droite) : la caisse avance d'1 pixel.
+     * [INFO] Retourne true si la caisse a pu avancer.
      * ________________________________________________________________ */
     public boolean pousserCaisse(Caisse caisse, int direction) {
+        // Position x qu'aurait la caisse après avoir avancé d'1 pixel
         int prochainePositionX = caisse.getPositionX() + direction;
+
+        // Si une autre caisse se trouve à cette nouvelle position, il faut
+        // d'abord la pousser elle aussi (des caisses collées avancent ensemble)
         for (Caisse autre : caisses) {
             if (autre != caisse && autre.chevaucheRectangle(prochainePositionX,
                     caisse.getPositionY(), caisse.getHitbox()[0], caisse.getHitbox()[1])) {
+                // Appel récursif : pousserCaisse s'appelle elle-même sur la caisse suivante.
+                // Si celle-ci est bloquée, toute la rangée est bloquée.
                 if (!pousserCaisse(autre, direction)) {
                     return false;
                 }
             }
         }
+
+        // La caisse ne peut pas entrer dans un mur, une porte fermée
+        // ou une caisse qui n'a pas pu bouger
         if (collisionHitboxSansCaisses(prochainePositionX, caisse.getPositionY(),
                 caisse.getHitbox()[0], caisse.getHitbox()[1], caisse)) {
             return false;
         }
+
+        // La voie est libre : on déplace la caisse
         caisse.setPositionX(prochainePositionX);
         return true;
     }
 
     /* ________________________________________________________________
-     * ACTION : Met à jour les caisses sans inclure leur propre hitbox.
+     * ACTION : Teste les collisions d'une hitbox en ignorant une caisse donnée.
+     * [INFO] Sert aux caisses : une caisse ne doit pas se bloquer elle-même.
      * ________________________________________________________________ */
     public boolean collisionHitboxSansCaisses(int x, int y, int largeurHitbox,
             int hauteurHitbox, Caisse caisseIgnoree) {
+        // D'abord les tuiles solides et les portes fermées
         if (collisionTerrainEtPortes(x, y, largeurHitbox, hauteurHitbox)) {
             return true;
         }
+        // Puis toutes les caisses, sauf celle qu'on doit ignorer
+        // (sinon la caisse serait toujours « en collision » avec elle-même)
         for (Caisse caisse : caisses) {
             if (caisse != caisseIgnoree
                     && caisse.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
                 return true;
             }
         }
+        // Rien ne bloque
         return false;
     }
 
@@ -463,6 +528,8 @@ public class Map {
      * ACTION : Retourne les objets du décor interactif hors ingrédients.
      * ________________________________________________________________ */
     public List<ObjetInteractif> getObjetsDecor() {
+        // Tous les objets du décor (leviers, portes, échelles, blocs mortels),
+        // en lecture seule
         return Collections.unmodifiableList(objetsDecor);
     }
 
@@ -472,25 +539,42 @@ public class Map {
      * ________________________________________________________________ */
     public void mettreAJourMecanismes(List<Entite> entites) {
         List<BlocPorte> blocsPorte = getBlocsPorte();
+
+        // ===== ÉTAPE 1 : ce que demande chaque levier =====
         for (BlocPorte bloc : blocsPorte) {
+            // On cherche le levier qui a le même identifiant que la porte
             boolean actif = false;
             for (ObjetInteractif objet : objetsDecor) {
+                // continue : on saute les objets qui ne sont pas des leviers
                 if (!(objet instanceof Levier)) {
                     continue;
                 }
                 Levier levier = (Levier) objet;
                 if (levier.getIdMecanisme() == bloc.getIdMecanisme()) {
+                    // Levier trouvé : on retient s'il est actionné, puis on arrête de chercher
                     actif = levier.isActive();
                     break;
                 }
             }
+            // La porte doit être fermée si son état initial et le levier « ne sont pas pareils » :
+            // - porte FERMEE au départ + levier inactif -> fermée
+            // - porte FERMEE au départ + levier actif   -> ouverte
+            // - porte OUVERTE au départ + levier inactif -> ouverte
+            // - porte OUVERTE au départ + levier actif   -> fermée
             bloc.definirFermetureDemandee(bloc.isFermeeInitialement() != actif);
         }
+
+        // ===== ÉTAPE 2 : on applique l'état, sans enfermer personne =====
         for (BlocPorte bloc : blocsPorte) {
+            // Ouvrir est toujours possible tout de suite
             if (!bloc.estFermetureDemandee()) {
                 bloc.definirFerme(false);
                 continue;
             }
+
+            // Pour fermer, on vérifie qu'aucune entité (joueur, monstre, caisse)
+            // ne se trouve dans la porte. Une même ligne PORTE peut être découpée
+            // en plusieurs blocs : on regarde tous les blocs de la même porte (même idPorte)
             boolean porteOccupee = false;
             for (BlocPorte candidat : blocsPorte) {
                 if (candidat.getIdPorte() != bloc.getIdPorte()) {
@@ -506,6 +590,9 @@ public class Map {
                     break;
                 }
             }
+
+            // Tous les blocs de cette porte se ferment ensemble, sauf si quelqu'un
+            // est dedans : dans ce cas ils restent ouverts et on réessaiera au tic suivant
             for (BlocPorte candidat : blocsPorte) {
                 if (candidat.getIdPorte() == bloc.getIdPorte()) {
                     candidat.definirFerme(!porteOccupee);
@@ -518,7 +605,10 @@ public class Map {
      * ACTION : Dessine la tuile demandée du tileset.
      * ________________________________________________________________ */
     public void dessinerTuile(Graphics2D contexte, int numero, int x, int y, int largeurTuile, int hauteurTuile) {
+        // On ne dessine que si le tileset est chargé et que le numéro existe
+        // (sinon tuiles[numero] provoquerait une erreur)
         if (tuiles != null && numero >= 0 && numero < tuiles.length) {
+            // drawImage redimensionne la tuile à largeurTuile x hauteurTuile
             contexte.drawImage(tuiles[numero], x, y, largeurTuile, hauteurTuile, null);
         }
     }
@@ -527,6 +617,7 @@ public class Map {
      * ACTION : Retourne les ingrédients déclarés à la suite de la grille.
      * ________________________________________________________________ */
     public List<Ingredient> getIngredients() {
+        // Liste en lecture seule des ingrédients lus dans la section INGREDIENTS
         return Collections.unmodifiableList(ingredients);
     }
 
@@ -534,6 +625,7 @@ public class Map {
      * ACTION : Retourne la largeur en nombre de tuiles.
      * ________________________________________________________________ */
     public int getLargeur() {
+        // Nombre de colonnes lu sur la 3e ligne du fichier
         return largeur;
     }
 
@@ -541,6 +633,7 @@ public class Map {
      * ACTION : Retourne la hauteur en nombre de tuiles.
      * ________________________________________________________________ */
     public int getHauteur() {
+        // Nombre de lignes lu sur la 3e ligne du fichier
         return hauteur;
     }
 
@@ -548,6 +641,7 @@ public class Map {
      * ACTION : Retourne la taille d'une tuile en pixels.
      * ________________________________________________________________ */
     public int getTailleTuile() {
+        // Côté d'une tuile carrée (32 pixels dans nos niveaux)
         return tailleTuile;
     }
 
@@ -555,6 +649,7 @@ public class Map {
      * ACTION : Retourne la largeur du décor en pixels.
      * ________________________________________________________________ */
     public int getLargeurPixels() {
+        // Nombre de colonnes x taille d'une tuile (ex : 60 x 32 = 1920 px)
         return largeur * tailleTuile;
     }
 
@@ -562,6 +657,7 @@ public class Map {
      * ACTION : Retourne la hauteur du décor en pixels.
      * ________________________________________________________________ */
     public int getHauteurPixels() {
+        // Nombre de lignes x taille d'une tuile (ex : 33 x 32 = 1056 px)
         return hauteur * tailleTuile;
     }
 
@@ -569,6 +665,7 @@ public class Map {
      * ACTION : Retourne le numéro de tuile ligne i, colonne j.
      * ________________________________________________________________ */
     public int getTuile(int i, int j) {
+        // i = ligne (depuis le haut), j = colonne (depuis la gauche)
         return decor[i][j];
     }
 
@@ -578,9 +675,13 @@ public class Map {
      * [DEPENDANCE] GestionBDD exporte la map quand elle est modifiée.
      * ________________________________________________________________ */
     public void setTuile(int i, int j, int numero) {
+        // On ne fait rien si la case est en dehors de la grille
+        // ou si elle contient déjà ce numéro (rien à changer)
         if (i < 0 || i >= hauteur || j < 0 || j >= largeur || decor[i][j] == numero) {
             return;
         }
+        // On change la tuile et on note que la map a été modifiée
+        // (GestionBDD s'en sert pour savoir qu'il faut la renvoyer)
         decor[i][j] = numero;
         modifie = true;
     }
@@ -589,6 +690,7 @@ public class Map {
      * ACTION : Indique si le décor a changé depuis le dernier export.
      * ________________________________________________________________ */
     public boolean estModifie() {
+        // true si setTuile a changé une case depuis le dernier effacerModifie()
         return modifie;
     }
 
@@ -596,6 +698,7 @@ public class Map {
      * ACTION : Remet à zéro l'indicateur de modification.
      * ________________________________________________________________ */
     public void effacerModifie() {
+        // Appelé après l'export : la map est de nouveau « à jour »
         modifie = false;
     }
 
@@ -603,26 +706,30 @@ public class Map {
      * ACTION : Découpe le tileset en tuiles numérotées ligne par ligne.
      * ________________________________________________________________ */
     private void decouperTileset(BufferedImage tileset) {
+        // Nombre de tuiles dans l'image, en largeur et en hauteur
         int nbColonnes = tileset.getWidth() / tailleTuile;
         int nbLignes = tileset.getHeight() / tailleTuile;
         tuiles = new BufferedImage[nbColonnes * nbLignes];
+
+        // Les tuiles sont numérotées de gauche à droite, puis ligne par ligne :
+        // 0 1 2 ... (nbColonnes - 1) sur la 1re ligne, puis nbColonnes, ... sur la 2e
         for (int i = 0; i < tuiles.length; i++) {
+            // i % nbColonnes = numéro de colonne de la tuile dans l'image
             int x = (i % nbColonnes) * tailleTuile;
+            // i / nbColonnes = numéro de ligne de la tuile dans l'image (division entière)
             int y = (i / nbColonnes) * tailleTuile;
+            // getSubimage découpe le carré de tailleTuile pixels à partir de (x, y)
             tuiles[i] = tileset.getSubimage(x, y, tailleTuile, tailleTuile);
         }
     }
 
     /* ________________________________________________________________
      * ACTION : Actualise la map à chaque tour de boucle.
-     * [INFO] Vide pour l'instant, le décor est statique.
-     * ________________________________________________________________ */
-    /* ________________________________________________________________
-     * ACTION : Actualise la map à chaque tour de boucle.
      * [INFO] Le décor reste statique.
      * ________________________________________________________________ */
     public void miseAJour() {
-
+        // Rien à faire pour l'instant : les tuiles ne bougent pas.
+        // Les portes sont mises à jour à part, dans mettreAJourMecanismes.
     }
 
     /* ________________________________________________________________
@@ -631,18 +738,24 @@ public class Map {
      *        pour laisser voir la ville derrière.
      * ________________________________________________________________ */
     public void rendu(Graphics2D contexte) {
+        // 1) Le fond (ciel + ville), étiré sur toute la taille de la carte
         if (fond != null) {
             contexte.drawImage(fond, 0, 0, getLargeurPixels(), getHauteurPixels(), null);
         }
-        // i parcourt les lignes, j parcourt les colonnes
+
+        // Pas de tileset chargé : on ne peut pas dessiner les tuiles
         if (tuiles == null) {
             return;
         }
+
+        // 2) Les tuiles : i parcourt les lignes, j parcourt les colonnes
         for (int i = 0; i < hauteur; i++) {
             for (int j = 0; j < largeur; j++) {
+                // Case de ciel : on la saute pour laisser voir le fond
                 if (fond != null && decor[i][j] == TUILE_CIEL) {
                     continue;
                 }
+                // À l'écran, y part du haut : la ligne i est donc à i * tailleTuile
                 contexte.drawImage(tuiles[decor[i][j]], j * tailleTuile, i * tailleTuile, null);
             }
         }
@@ -653,18 +766,21 @@ public class Map {
      * [INFO] Hors du décor, les côtés sont solides, le haut et le bas non.
      * ________________________________________________________________ */
     public boolean estSolide(int i, int j) {
+        // À gauche ou à droite de la carte : mur invisible, on ne peut pas sortir
         if (j < 0 || j >= largeur) {
             return true;
         }
+        // Au-dessus ou en dessous de la carte : vide, on peut sauter haut ou tomber
         if (i < 0 || i >= hauteur) {
             return false;
         }
-        //On verifie si le numero de la tuile est parmi celles traversables
+        // On vérifie si le numéro de la tuile est parmi ceux traversables (le ciel)
         for (int numero : TUILES_TRAVERSABLES) {
             if (decor[i][j] == numero) {
                 return false;
             }
         }
+        // Toute autre tuile (trottoir, briques...) est solide
         return true;
     }
 
@@ -674,14 +790,17 @@ public class Map {
      * [INFO] On suppose que y = 0 correspond au bas du décor.
      * ________________________________________________________________ */
     public boolean collisionHitbox(int x, int y, int largeurHitbox, int hauteurHitbox) {
+        // D'abord les tuiles solides et les portes fermées
         if (collisionTerrainEtPortes(x, y, largeurHitbox, hauteurHitbox)) {
             return true;
         }
+        // Puis les caisses, qui bloquent aussi les entités
         for (Caisse caisse : caisses) {
             if (caisse.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
                 return true;
             }
         }
+        // Rien ne bloque
         return false;
     }
 
@@ -690,16 +809,27 @@ public class Map {
      * ________________________________________________________________ */
     private boolean collisionTerrainEtPortes(int x, int y, int largeurHitbox,
             int hauteurHitbox) {
+        // ===== 1) Bords de la hitbox en pixels (repère du jeu : y monte) =====
+        // "- 1" : une hitbox de 32 pixels qui commence en 0 finit au pixel 31
         int hitboxPixelGauche = x;
         int hitboxPixelDroite = x + largeurHitbox - 1;
         int hitboxPixelBas = y;
         int hitboxPixelHaut = y + hauteurHitbox - 1;
+
+        // ===== 2) Conversion vers le repère du décor (y descend depuis le haut) =====
+        // Le haut de la hitbox dans le jeu correspond à la plus PETITE valeur dans le décor
         int hitboxPixelHautDecor = getHauteurPixels() - 1 - hitboxPixelHaut;
         int hitboxPixelBasDecor = getHauteurPixels() - 1 - hitboxPixelBas;
+
+        // ===== 3) Tuiles couvertes par la hitbox =====
+        // floorDiv divise en arrondissant vers le bas, même pour les nombres négatifs
+        // (ex : -1 / 32 donne -1 et non 0), utile quand l'entité sort de la carte
         int hitboxTuileGauche = Math.floorDiv(hitboxPixelGauche, tailleTuile);
         int hitboxTuileDroite = Math.floorDiv(hitboxPixelDroite, tailleTuile);
         int hitboxTuileHaut = Math.floorDiv(hitboxPixelHautDecor, tailleTuile);
         int hitboxTuileBas = Math.floorDiv(hitboxPixelBasDecor, tailleTuile);
+
+        // ===== 4) Une seule tuile solide sous la hitbox suffit à bloquer =====
         for (int i = hitboxTuileHaut; i <= hitboxTuileBas; i++) {
             for (int j = hitboxTuileGauche; j <= hitboxTuileDroite; j++) {
                 if (estSolide(i, j)) {
@@ -707,12 +837,17 @@ public class Map {
                 }
             }
         }
+
+        // ===== 5) Les portes fermées bloquent aussi =====
+        // isCollisionJoueur() vaut true seulement quand la porte est fermée
         for (ObjetInteractif objet : objetsDecor) {
             if (objet instanceof BlocPorte && objet.isCollisionJoueur()
                     && objet.chevaucheRectangle(x, y, largeurHitbox, hauteurHitbox)) {
                 return true;
             }
         }
+
+        // Ni tuile solide ni porte fermée
         return false;
     }
 }
