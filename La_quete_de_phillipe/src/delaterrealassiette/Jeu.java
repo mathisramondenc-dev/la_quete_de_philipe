@@ -347,7 +347,12 @@ public class Jeu {
         if (niveau != numeroNiveau) return;
         niveauEtatsRecus = niveau;
         leviersRecus = new HashMap<>(leviers);
+        // Les actions locales en attente d'envoi restent prioritaires sur un ancien instantané.
+        java.util.Map<Integer, Boolean> leviersLocaux = leviersModifies.get(niveau);
+        if (leviersLocaux != null) leviersRecus.putAll(leviersLocaux);
         ingredientsRecus = new HashSet<>(ingredientsRamasses);
+        Set<String> ingredientsLocaux = ingredientsModifies.get(niveau);
+        if (ingredientsLocaux != null) ingredientsRecus.addAll(ingredientsLocaux);
     }
 
     /** Applique les états reçus sans les republier comme des changements locaux. */

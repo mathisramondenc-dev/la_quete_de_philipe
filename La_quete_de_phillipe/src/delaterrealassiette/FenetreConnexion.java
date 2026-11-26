@@ -5,6 +5,7 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagLayout;
+import java.sql.SQLException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -88,15 +89,12 @@ public class FenetreConnexion extends Fenetre {
             return;
         }
 
-        InfosPartie infos = new InfosPartie(pseudo, identifiant, motDePasse);
-
-        // TODO BDD : vérifier que la partie existe, que le mot de passe
-        //            est correct, qu'il reste une place et que le pseudo
-        //            n'est pas déjà pris. Si non : afficherErreur(...) et return.
-        //            Récupérer aussi le niveau de la partie.
-        System.out.println("Connexion : " + infos);
-
-        lancerPartie(infos);
+        try {
+            // La session est obligatoire pour que le thread JDBC puisse publier les actions.
+            lancerPartie(GestionBDD.rejoindre(pseudo, identifiant, motDePasse));
+        } catch (SQLException e) {
+            afficherErreur("Connexion impossible : " + e.getMessage());
+        }
     }
 
     /* ________________________________________________________________

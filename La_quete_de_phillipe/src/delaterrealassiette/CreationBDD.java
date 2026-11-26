@@ -70,18 +70,6 @@ public class CreationBDD {
             + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
             + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
-            "CREATE TABLE IF NOT EXISTS partie_multi ("
-            + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
-            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
-            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            "CREATE TABLE IF NOT EXISTS joueur_multi ("
-            + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "
-            + "pseudo VARCHAR(15) NOT NULL, position_x INT NOT NULL DEFAULT 32, position_y INT NOT NULL DEFAULT 64, "
-            + "avatar_actuel VARCHAR(40) NOT NULL DEFAULT 'Etchebest', dernier_ping TIMESTAMP(3) NOT NULL, "
-            + "UNIQUE KEY uq_partie_pseudo(code_partie,pseudo), KEY ix_joueur_presence(code_partie,dernier_ping), "
-            + "CONSTRAINT fk_multijoueur_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE"
-            + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             // === MULTIJOUEUR === États communs des mécanismes et ingrédients par partie/niveau.
             "CREATE TABLE IF NOT EXISTS levier_multi ("
             + "code_partie VARCHAR(40) NOT NULL, niveau_id INT NOT NULL, levier_id INT NOT NULL, actif BOOLEAN NOT NULL, "
@@ -110,7 +98,8 @@ public class CreationBDD {
         String[][] avatars = {
             {"Etchebest", "5", "12", "32", "64", "/sprites/etchebest.png"},
             {"Lignac", "7", "15", "28", "60", "/sprites/lignac.png"},
-            {"Tarayre", "6", "10", "30", "58", "/sprites/tarayre.png"}
+            {"Tarayre", "6", "10", "30", "58", "/sprites/tarayre.png"},
+            {"Maite", "6", "10", "32", "64", "/sprites/maite.png"}
         };
         try (PreparedStatement requete = connexion.prepareStatement(sql)) {
             for (String[] avatar : avatars) {

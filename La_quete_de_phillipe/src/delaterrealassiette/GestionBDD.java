@@ -329,11 +329,17 @@ public class GestionBDD {
         List<JoueurDistant> copie;
         synchronized(liste){copie=new ArrayList<>(liste);}
         Map m=jeu.getCarte();
-        for(JoueurDistant d:copie) {
-            int x=d.getX(), y=m.getHauteurPixels()-d.getY()-40;
-            Color col="Lignac".equals(d.getAvatar())?new Color(70,190,255):("Tarayre".equals(d.getAvatar())?new Color(255,180,60):new Color(250,90,140));
-            g.setColor(Color.BLACK);g.fillOval(x-2,y-2,36,44);g.setColor(col);g.fillOval(x,y,32,40);
-            g.setColor(Color.WHITE);g.drawString(d.getPseudo(),x-4,y-6);
+        for (JoueurDistant d : copie) {
+            int x = d.getX(), y = m.getHauteurPixels() - d.getY() - d.getHauteur();
+            java.awt.image.BufferedImage image = ElementDeJeu.chargerImageDepuisCache(d.getCheminImage());
+            if (image != null) g.drawImage(image, x, y, d.getLargeur(), d.getHauteur(), null);
+            else {
+                Color couleur = "Lignac".equals(d.getAvatar()) ? new Color(70, 190, 255)
+                        : ("Tarayre".equals(d.getAvatar()) ? new Color(255, 180, 60)
+                        : ("Maite".equals(d.getAvatar()) ? new Color(180, 110, 220) : new Color(250, 90, 140)));
+                g.setColor(couleur); g.fillRect(x, y, d.getLargeur(), d.getHauteur());
+            }
+            g.setColor(Color.WHITE); g.drawString(d.getPseudo(), x - 4, y - 6);
         }
     }
 }
