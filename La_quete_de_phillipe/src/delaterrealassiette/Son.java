@@ -1,4 +1,3 @@
-// Son.java
 package delaterrealassiette;
 
 import java.io.File;
@@ -6,23 +5,20 @@ import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 
-/* ________________________________________________________________
- * ACTION : Charge un son depuis un fichier .wav et le joue à la demande.
- * [INFO] Java lit les fichiers .wav, mais PAS les .mp3 : convertir le son
- *        en .wav avant (par exemple avec Audacity : Fichier > Exporter).
- * [INFO] Si le fichier est absent ou illisible, un message s'affiche dans
- *        la console et le jeu continue sans son (pas de plantage).
- * [DEPENDANCE] FenetreDeJeu joue le son de mort.
- * ________________________________________________________________ */
+/**
+ * Effet sonore court (mort, victoire...), chargé une fois en mémoire et
+ * rejoué autant de fois que nécessaire.
+ *
+ * Seul le format .wav est lu par Java (pas le .mp3). Un son absent ou
+ * illisible n'empêche pas le jeu de tourner : un message est écrit dans la
+ * console et jouer() ne fait alors plus rien.
+ */
 public class Son {
 
-    private Clip clip; // null si le son n'a pas pu être chargé
+    /** null si le son n'a pas pu être chargé. */
+    private Clip clip;
 
-    /* ________________________________________________________________
-     * ACTION : Charge le son en mémoire.
-     * [INFO] Le chemin est relatif au dossier du projet NetBeans,
-     *        comme pour les images (ex : "sons/mort.wav").
-     * ________________________________________________________________ */
+    /** @param cheminFichier chemin du .wav, relatif au dossier du projet (ex. "sons/mort.wav") */
     public Son(String cheminFichier) {
         try {
             AudioInputStream flux = AudioSystem.getAudioInputStream(new File(cheminFichier));
@@ -34,10 +30,7 @@ public class Son {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Joue le son depuis le début.
-     * [INFO] Si le son est déjà en train de jouer, il recommence.
-     * ________________________________________________________________ */
+    /** Joue le son depuis le début, en le relançant s'il était déjà en cours. */
     public void jouer() {
         if (clip == null) {
             return;
@@ -49,16 +42,11 @@ public class Son {
         clip.start();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le son a bien été chargé.
-     * ________________________________________________________________ */
     public boolean estCharge() {
         return clip != null;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Libère le son (à appeler quand la fenêtre se ferme).
-     * ________________________________________________________________ */
+    /** Libère la ressource audio (à la fermeture de la fenêtre). */
     public void fermer() {
         if (clip != null) {
             clip.close();

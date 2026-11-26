@@ -2,9 +2,23 @@ package delaterrealassiette;
 
 import java.awt.Graphics2D;
 
-/* ________________________________________________________________
- * ACTION : Représente un bloc de porte piloté par un levier.
- * ________________________________________________________________ */
+/**
+ * Porte commandée par un levier : fermée, elle est visible et bloque les
+ * entités ; ouverte, elle disparaît et se traverse.
+ *
+ * Identifiants :
+ * - idMecanisme relie la porte au levier qui porte le même numéro ;
+ * - idPorte distingue chaque ligne PORTE du fichier de niveau, afin que tous
+ *   les blocs d'une même porte s'ouvrent et se ferment ensemble.
+ *
+ * L'état se fait en deux temps, piloté par Map.mettreAJourMecanismes() :
+ * le levier donne d'abord l'état « demandé », puis la Map l'applique. Une
+ * ouverture est immédiate ; une fermeture attend que plus aucune entité ne
+ * se trouve dans la porte, pour ne coincer personne dans le mur.
+ *
+ * Le levier inverse l'état de départ : une porte déclarée FERMEE s'ouvre
+ * quand le levier est actif, une porte OUVERTE se ferme.
+ */
 public class BlocPorte extends ObjetInteractif {
     private final int idMecanisme;
     private final int idPorte;
@@ -12,9 +26,11 @@ public class BlocPorte extends ObjetInteractif {
     private boolean fermee;
     private boolean fermetureDemandee;
 
-    /* ________________________________________________________________
-     * ACTION : Initialise une porte avec ses identifiants et ses dimensions.
-     * ________________________________________________________________ */
+    /**
+     * @param idMecanisme numéro du levier qui commande la porte
+     * @param idPorte numéro de la ligne PORTE dont provient ce bloc
+     * @param fermeeInitialement état lorsque le levier est inactif
+     */
     public BlocPorte(Map map, int idMecanisme, int idPorte, int positionX, int positionY,
             int largeur, int hauteur, boolean fermeeInitialement) {
         super(map, positionX, positionY);
@@ -26,58 +42,35 @@ public class BlocPorte extends ObjetInteractif {
         definirCollisionJoueur(fermee);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'identifiant du mécanisme associé.
-     * ________________________________________________________________ */
     public int getIdMecanisme() { return idMecanisme; }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l’identifiant de la porte déclarée dans le niveau.
-     * [INFO] Tous les blocs d’une même ligne PORTE partagent cet identifiant.
-     * [DEPENDANCE] Map attribue cet identifiant lors du chargement du niveau.
-     * ________________________________________________________________ */
     public int getIdPorte() { return idPorte; }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'état initial fermé déclaré dans le niveau.
-     * ________________________________________________________________ */
     public boolean isFermeeInitialement() { return fermeeInitialement; }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le bloc est fermé.
-     * ________________________________________________________________ */
     public boolean isFermee() { return fermee; }
 
-    /* ________________________________________________________________
-     * ACTION : Enregistre l'état demandé par le levier.
-     * ________________________________________________________________ */
+    /** Enregistre l'état voulu par le levier ; il sera appliqué par definirFerme(). */
     public void definirFermetureDemandee(boolean demandee) { fermetureDemandee = demandee; }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si une fermeture est demandée.
-     * ________________________________________________________________ */
     public boolean estFermetureDemandee() { return fermetureDemandee; }
 
-    /* ________________________________________________________________
-     * ACTION : Applique l'état de fermeture et sa collision.
-     * ________________________________________________________________ */
+    /** Applique réellement l'état : une porte fermée devient solide. */
     public void definirFerme(boolean fermee) {
         this.fermee = fermee;
         definirCollisionJoueur(fermee);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Affiche la porte uniquement lorsqu'elle est fermée.
-     * ________________________________________________________________ */
+    /** Une porte ouverte n'est pas dessinée. */
     @Override
     protected boolean estVisible() {
         return fermee;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine les tuiles pleines de la porte.
-     * [DEPENDANCE] Map fournit la tuile de porte et sa taille.
-     * ________________________________________________________________ */
+    /**
+     * La porte n'a pas de sprite propre : elle est toujours dessinée avec la
+     * tuile n°5 du tileset du niveau, répétée sur toute sa surface.
+     */
     @Override
     protected void dessinerImageManquante(Graphics2D contexte, int positionEcranX,
             int positionEcranY, int largeurZone, int hauteurZone) {

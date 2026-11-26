@@ -1,10 +1,21 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Centralise la position et les déplacements des entités.
- * [INFO] L'origine de la hitbox est le coin inférieur gauche.
- * [DEPENDANCE] La map est créée par Jeu et fournit collisionHitbox.
- * ________________________________________________________________ */
+/**
+ * Élément mobile soumis à la physique : joueurs, monstres et caisses.
+ *
+ * Stratégie de déplacement : à chaque tick, la vitesse est appliquée pixel
+ * par pixel, d'abord en X puis en Y. Avant chaque pixel on interroge la Map
+ * (collisionHitbox) ; au premier obstacle on s'arrête et la vitesse sur cet
+ * axe est remise à 0. Séparer les axes permet de glisser le long d'un mur et
+ * le pas d'un pixel empêche de traverser un bloc à grande vitesse.
+ *
+ * La gravité est une accélération constante plafonnée (vitesseYMin) ; elle
+ * est suspendue sur une échelle, où monter/descendre donnent directement la
+ * vitesse verticale.
+ *
+ * Les sous-classes fournissent leur vitesse, leur force de saut et leur
+ * logique de tick (mettreAJour). La Map est partagée et jamais recréée ici.
+ */
 public abstract class Entite extends ElementDeJeu {
     protected int vitesseX;
     protected int vitesseY;
@@ -15,46 +26,35 @@ public abstract class Entite extends ElementDeJeu {
     protected boolean descendreDemande;
     protected boolean estSurEchelle;
 
-    /* ________________________________________________________________
-     * ACTION : Initialise la position et la map de l'entité.
-     * [INFO] La map n'est jamais recréée par l'entité.
-     * [DEPENDANCE] Jeu transmet son unique instance de Map.
-     * ________________________________________________________________ */
+    /**
+     * @param map carte du niveau, utilisée pour toutes les collisions
+     */
     public Entite(Map map, int positionX, int positionY) {
         super(positionX, positionY);
         this.map = map;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Initialise l'entité à l'origine.
-     * [DEPENDANCE] Jeu transmet son unique instance de Map.
-     * ________________________________________________________________ */
+    /** Entité placée à l'origine, positionnée plus tard. */
     public Entite(Map map) {
         this(map, 0, 0);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la taille de tuile fournie par la carte.
-     * [DEPENDANCE] Map fournit la taille des tuiles du niveau.
-     * ________________________________________________________________ */
     @Override
     protected int getTailleTuileDessin() {
         return map.getTailleTuile();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Applique les déplacements sur les deux axes.
-     * ________________________________________________________________ */
+    /** Applique la vitesse courante : axe X puis axe Y. */
     public void deplacer() {
         deplacerX();
         deplacerY();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Déplace l'entité sur l'axe x pixel par pixel.
-     * [INFO] Une collision annule la vitesse sur l'axe x.
-     * [DEPENDANCE] La map fournit collisionHitbox.
-     * ________________________________________________________________ */
+    /**
+     * Avance horizontalement pixel par pixel jusqu'au premier obstacle.
+     * Cas particulier : si le joueur incarne Etchebest et bute sur une caisse,
+     * il tente de la pousser ; il n'est bloqué que si la caisse ne bouge pas.
+     */
     protected void deplacerX() {
         int[] dimensionsHitbox = getHitbox();
         int largeurHitbox = dimensionsHitbox[0];
@@ -88,11 +88,11 @@ public abstract class Entite extends ElementDeJeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Déplace l'entité sur l'axe y pixel par pixel.
-     * [INFO] Une collision annule la vitesse sur l'axe y.
-     * [DEPENDANCE] La map fournit collisionHitbox.
-     * ________________________________________________________________ */
+    /**
+     * Avance verticalement pixel par pixel jusqu'au premier obstacle.
+     * Le sommet d'une échelle se comporte comme un sol : on s'y pose, sauf si
+     * le joueur demande à descendre.
+     */
     protected void deplacerY() {
         int[] dimensionsHitbox = getHitbox();
         int largeurHitbox = dimensionsHitbox[0];
@@ -118,9 +118,7 @@ public abstract class Entite extends ElementDeJeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ignore la caisse courante lors de ses propres déplacements.
-     * ________________________________________________________________ */
+    /** Une caisse ne doit pas entrer en collision avec elle-même. */
     private boolean collisionPourEntite(int x, int y, int largeurHitbox, int hauteurHitbox) {
         if (this instanceof Caisse) {
             return map.collisionHitboxSansCaisses(x, y, largeurHitbox, hauteurHitbox,
@@ -129,26 +127,26 @@ public abstract class Entite extends ElementDeJeu {
         return map.collisionHitbox(x, y, largeurHitbox, hauteurHitbox);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Détecte le sol partagé par les joueurs, monstres et caisses.
-     * ________________________________________________________________ */
+    /** @return true si un bloc solide est juste sous l'entité et qu'elle ne monte pas */
     protected boolean estAuSol() {
         int[] dimensionsHitbox = getHitbox();
         return map.aUnSolSous(positionX, positionY,
                 dimensionsHitbox[0], dimensionsHitbox[1]) && vitesseY <= 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Enregistre les commandes verticales de déplacement sur échelle.
-     * ________________________________________________________________ */
+    /** Mémorise les touches haut/bas, lues au prochain calcul de vitesse verticale. */
     public void definirCommandesEchelle(boolean monter, boolean descendre) {
         monterDemande = monter;
         descendreDemande = descendre;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Met à jour la gravité et le déplacement vertical sur échelle.
-     * ________________________________________________________________ */
+    /**
+     * Calcule la vitesse verticale du tick. Ordre de priorité :
+     * échelle (monter/descendre) &gt; saut &gt; immobile sur échelle &gt;
+     * au sol &gt; chute avec gravité plafonnée.
+     *
+     * @param demandeSaut true si un saut est déclenché ce tick
+     */
     protected void mettreAJourGraviteEtEchelle(boolean demandeSaut) {
         int[] dimensionsHitbox = getHitbox();
         estSurEchelle = map.estSurOuDansEchelle(positionX, positionY,
@@ -176,19 +174,13 @@ public abstract class Entite extends ElementDeJeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la vitesse de déplacement.
-     * ________________________________________________________________ */
+    /** @return vitesse de déplacement en pixels par tick */
     public abstract int getVitesse();
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'impulsion du saut.
-     * ________________________________________________________________ */
+    /** @return vitesse verticale donnée au départ d'un saut (0 = ne saute pas) */
     public abstract int getForceSaut();
 
-    /* ________________________________________________________________
-     * ACTION : Actualise les intentions et les déplacements.
-     * ________________________________________________________________ */
+    /** Logique propre à l'entité pour un tick de jeu (intentions + déplacement). */
     public abstract void mettreAJour();
 
 }

@@ -1,4 +1,3 @@
-// Fenetre.java
 package delaterrealassiette;
 
 import java.awt.BorderLayout;
@@ -26,42 +25,43 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.text.JTextComponent;
 
-/* ________________________________________________________________
- * ACTION : Base commune des fenêtres du jeu (titre, taille, fermeture,
- *          couleurs, image de fond et petits outils pour les formulaires).
- * [INFO] L'image de fond (les 4 chefs) s'appelle NOM_IMAGE_FOND. Elle est
- *        cherchée d'abord à côté des fichiers .java (src/delaterrealassiette),
- *        puis dans le dossier images/. Si elle est introuvable, le fond
- *        reste uni (COULEUR_FOND) et le chemin cherché est écrit en console.
- * [INFO] Les fenêtres de l'interface s'ouvrent en plein écran : les tailles
- *        (polices, boutons) sont prévues pour 1920x1080 et adaptées à
- *        l'écran réel avec t(...).
- * [DEPENDANCE] FenetreMenu, FenetreHeberger, FenetreRejoindre,
- *              FenetreConnexion, FenetreControles et FenetreDeJeu en héritent.
- * ________________________________________________________________ */
+/**
+ * Classe mère de toutes les fenêtres du jeu (menu, formulaires, contrôles,
+ * fenêtre de jeu).
+ *
+ * Elle évite de répéter la même mise en forme dans chaque écran en
+ * fournissant des « briques » prêtes à l'emploi : boutons, textes, lignes de
+ * formulaire, carte sombre centrée, fond illustré et passage en plein écran.
+ * Un écran de formulaire se construit donc en quelques lignes avec
+ * creerEcranPleinEcran(sousTitre, contenu).
+ *
+ * Adaptation à l'écran : toutes les tailles sont pensées pour un écran
+ * 1920x1080 et passent par t(...), qui les met à l'échelle de l'écran réel.
+ *
+ * L'image de fond (les 4 chefs) est chargée une seule fois et partagée ; si
+ * elle est introuvable, le fond reste uni et un message l'indique en console.
+ */
 public abstract class Fenetre extends JFrame {
 
     public static final String TITRE = "La Quête de Philippe";
     public static final int LARGEUR = 800;
     public static final int HAUTEUR = 320;
 
-    // Couleurs communes à toutes les fenêtres
     public static final Color COULEUR_FOND = new Color(40, 30, 25);
     public static final Color COULEUR_TEXTE = Color.WHITE;
 
     public static final String NOM_IMAGE_FOND = "fond_menu.png";
-    private static BufferedImage imageFond;          // chargée une seule fois
+    /** Chargée au premier besoin puis partagée par toutes les fenêtres. */
+    private static BufferedImage imageFond;
     private static boolean imageFondDejaCherchee = false;
-    private static final int HAUTEUR_MUR_POURCENT = 45; // mur sans les chefs
+    /** Part haute de l'image (mur de briques, sans les chefs), en pourcentage. */
+    private static final int HAUTEUR_MUR_POURCENT = 45;
 
-    // Adaptation des tailles à l'écran (1 pour un écran 1920x1080)
+    /** Hauteur d'écran pour laquelle les tailles sont prévues (facteur 1). */
     private static final double HAUTEUR_REFERENCE = 1080.0;
     private final double facteur;
 
-    /* ________________________________________________________________
-     * ACTION : Configure la fenêtre sans l'afficher.
-     * [INFO] Appeler setVisible(true) après la construction.
-     * ________________________________________________________________ */
+    /** Configure la fenêtre sans l'afficher (appeler setVisible(true) ensuite). */
     public Fenetre() {
         super(TITRE);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -71,35 +71,34 @@ public abstract class Fenetre extends JFrame {
         facteur = Math.max(0.6, Math.min(1.5, hauteurEcran / HAUTEUR_REFERENCE));
     }
 
-    /* ________________________________________________________________
-     * ACTION : Adapte une taille prévue pour un écran 1920x1080 à l'écran
-     *          réel (plus petit sur un petit écran, plus grand sur un grand).
-     * ________________________________________________________________ */
+    /**
+     * Met à l'échelle une taille prévue pour un écran 1080p (facteur borné
+     * entre 0.6 et 1.5).
+     *
+     * @param taille taille en pixels sur un écran 1920x1080
+     * @return taille adaptée à l'écran réel
+     */
     protected int t(int taille) {
         return (int) Math.round(taille * facteur);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Met la fenêtre en plein écran (taille de l'écran sans la
-     *          barre des tâches, puis maximisée).
-     * [INFO] À appeler à la fin du constructeur, après finaliserFenetre().
-     * ________________________________________________________________ */
+    /** Agrandit la fenêtre à tout l'écran (hors barre des tâches). À appeler après finaliserFenetre(). */
     protected void passerEnPleinEcran() {
         setResizable(true);
         setBounds(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds());
         setExtendedState(getExtendedState() | MAXIMIZED_BOTH);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Construit un écran plein écran : fond avec les 4 chefs,
-     *          titre du jeu en haut, et au centre une carte sombre avec
-     *          un sous-titre et le contenu (formulaire, liste...).
-     * [DEPENDANCE] Utilisé par FenetreHeberger, FenetreRejoindre,
-     *              FenetreConnexion et FenetreControles.
-     * ________________________________________________________________ */
+    /**
+     * Construit un écran complet : fond illustré, titre du jeu en haut et,
+     * au centre, une carte sombre avec un sous-titre et le contenu fourni.
+     *
+     * @param contenu formulaire ou liste à placer dans la carte
+     * @return panneau à passer à setContentPane()
+     */
     protected JPanel creerEcranPleinEcran(String sousTitre, JComponent contenu) {
         JPanel fond = creerPanneauFond(true);
-        fond.setPreferredSize(new Dimension(1280, 720)); // si on quitte le plein écran
+        fond.setPreferredSize(new Dimension(1280, 720)); // taille hors plein écran
 
         JLabel titre = creerTexte(TITRE, t(64), true);
         titre.setHorizontalAlignment(JLabel.CENTER);
@@ -113,17 +112,14 @@ public abstract class Fenetre extends JFrame {
         carte.add(texteSousTitre, BorderLayout.NORTH);
         carte.add(contenu, BorderLayout.CENTER);
 
-        JPanel centre = new JPanel(new GridBagLayout()); // centre la carte
+        JPanel centre = new JPanel(new GridBagLayout()); // GridBagLayout seul = centrage
         centre.setOpaque(false);
         centre.add(carte);
         fond.add(centre, BorderLayout.CENTER);
         return fond;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée une carte sombre semi-transparente aux coins arrondis,
-     *          pour que le texte reste lisible par-dessus l'image de fond.
-     * ________________________________________________________________ */
+    /** Panneau sombre semi-transparent aux coins arrondis, pour garder le texte lisible sur le fond. */
     protected JPanel creerCarte() {
         JPanel carte = new JPanel(new BorderLayout()) {
             @Override
@@ -144,18 +140,12 @@ public abstract class Fenetre extends JFrame {
         return carte;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ajuste la taille au contenu et centre la fenêtre à l'écran.
-     * [INFO] À appeler à la fin du constructeur des classes filles.
-     * ________________________________________________________________ */
+    /** Ajuste la taille au contenu et centre la fenêtre. À appeler en fin de constructeur. */
     protected void finaliserFenetre() {
         pack();
         setLocationRelativeTo(null);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée un bouton avec un texte, une taille et une action.
-     * ________________________________________________________________ */
     protected JButton creerBouton(String texte, int largeur, int hauteur,
             int taillePolice, ActionListener action) {
         JButton bouton = new JButton(texte);
@@ -165,9 +155,7 @@ public abstract class Fenetre extends JFrame {
         return bouton;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée un texte blanc pour les fonds sombres.
-     * ________________________________________________________________ */
+    /** Texte blanc, prévu pour les fonds sombres. */
     protected JLabel creerTexte(String texte, int taillePolice, boolean gras) {
         JLabel label = new JLabel(texte);
         label.setFont(new Font("SansSerif", gras ? Font.BOLD : Font.PLAIN, taillePolice));
@@ -175,11 +163,12 @@ public abstract class Fenetre extends JFrame {
         return label;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ajoute une ligne "intitulé : champ" dans un formulaire.
-     * [INFO] Le panneau doit utiliser un GridBagLayout.
-     * [INFO] Les champs de texte sont agrandis selon la taille de l'écran.
-     * ________________________________________________________________ */
+    /**
+     * Ajoute une ligne « intitulé : champ » à un formulaire en GridBagLayout
+     * (intitulé aligné à droite, champ étiré à gauche).
+     *
+     * @param ligne numéro de la ligne dans le formulaire (0 en haut)
+     */
     protected void ajouterLigneFormulaire(JPanel formulaire, int ligne,
             String intitule, Component champ) {
         GridBagConstraints placement = new GridBagConstraints();
@@ -202,13 +191,12 @@ public abstract class Fenetre extends JFrame {
         formulaire.add(champ, placement);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée le panneau principal d'une fenêtre, avec l'image de
-     *          fond qui remplit tout le panneau sans être déformée.
-     * [INFO] À utiliser à la place de new JPanel(new BorderLayout()).
-     * [INFO] avecChefs = false : seulement le haut de l'image (le mur de
-     *        briques), pour les petites fenêtres avec un formulaire.
-     * ________________________________________________________________ */
+    /**
+     * Panneau principal d'une fenêtre, avec l'image de fond qui le couvre
+     * entièrement sans déformation.
+     *
+     * @param avecChefs false pour n'afficher que le haut de l'image (le mur)
+     */
     protected JPanel creerPanneauFond(final boolean avecChefs) {
         JPanel panneau = new JPanel(new BorderLayout()) {
             @Override
@@ -216,7 +204,6 @@ public abstract class Fenetre extends JFrame {
                 super.paintComponent(graphismes);
                 BufferedImage image = getImageFond();
                 if (image != null && !avecChefs) {
-                    // Haut de l'image seulement : le mur, au-dessus des chefs
                     image = image.getSubimage(0, 0, image.getWidth(),
                             image.getHeight() * HAUTEUR_MUR_POURCENT / 100);
                 }
@@ -225,15 +212,16 @@ public abstract class Fenetre extends JFrame {
                 }
             }
         };
-        panneau.setBackground(COULEUR_FOND); // si l'image est absente
+        panneau.setBackground(COULEUR_FOND); // visible si l'image manque
         return panneau;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'image de fond (null si introuvable).
-     * [INFO] 1) à côté des .java (ressource du package delaterrealassiette)
-     *        2) sinon images/fond_menu.png dans le dossier du projet
-     * ________________________________________________________________ */
+    /**
+     * Cherche l'image de fond une seule fois : d'abord à côté des sources
+     * (ressource du package), sinon dans images/.
+     *
+     * @return l'image, ou null si elle est introuvable
+     */
     public static BufferedImage getImageFond() {
         if (!imageFondDejaCherchee) {
             imageFondDejaCherchee = true;
@@ -257,11 +245,11 @@ public abstract class Fenetre extends JFrame {
         return imageFond;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine l'image pour qu'elle couvre toute la zone en gardant
-     *          ses proportions (centrée, bords rognés si besoin).
-     * [INFO] Pixels nets (pas de flou) car c'est du pixel art.
-     * ________________________________________________________________ */
+    /**
+     * Dessine l'image de façon à couvrir toute la zone en gardant ses
+     * proportions (centrée, bords rognés si besoin). Interpolation « plus
+     * proche voisin » pour garder le pixel art net.
+     */
     protected static void dessinerImageCouvrante(Graphics2D g, BufferedImage image,
             int largeur, int hauteur) {
         double echelle = Math.max((double) largeur / image.getWidth(),

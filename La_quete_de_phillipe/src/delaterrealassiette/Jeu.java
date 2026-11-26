@@ -12,11 +12,28 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
-/* ________________________________________________________________
- * ACTION : Gère la carte, le joueur, les ingrédients et la progression.
- * [DEPENDANCE] FenetreDeJeu appelle miseAJour et rendu à chaque tic.
- * ________________________________________________________________ */
+/**
+ * Logique d'une partie : niveau courant, joueur, monstres, caisses,
+ * ingrédients et progression d'un niveau à l'autre.
+ *
+ * Fonctionnement : la fenêtre appelle miseAJour() puis rendu() à chaque tick.
+ * Un tick enchaîne, dans cet ordre : intentions du joueur, compétences (soin,
+ * levier), portes, physique des entités, dégâts des monstres, mort
+ * éventuelle, ramassage des ingrédients, puis passage au niveau suivant
+ * quand la recette est complète. Après la mort, le message reste affiché
+ * quelques ticks puis le niveau est rechargé à neuf ; après le dernier
+ * niveau, la partie est figée en victoire.
+ *
+ * Multijoueur : Jeu ne fait aucun accès à la base. Il tient deux « boîtes » :
+ * - sortante : leviers basculés et ingrédients ramassés localement, rangés
+ *   par niveau, que le thread de SynchronisationBDD vient lire, publie, puis
+ *   confirme pour les retirer ;
+ * - entrante : dernier état partagé reçu de la base, simplement mémorisé par
+ *   le thread réseau et appliqué au début du tick suivant, sur le thread du
+ *   jeu. Les méthodes partagées entre les deux threads sont synchronized.
+ */
 public class Jeu {
+    /** Position de départ si le niveau ne déclare pas de SPAWN. */
     private static final int departX = 32;
     private static final int departY = 64;
 
@@ -24,35 +41,42 @@ public class Jeu {
     private int numeroNiveau;
     private Map carte;
     private Joueur joueur;
+    /** Joueur, monstres et caisses : tout ce qui est mis à jour et dessiné. */
     private List<Entite> entites;
     private List<Ingredient> ingredients;
     private InventaireRecette inventaireRecette;
     private boolean victoire;
     private static final int nombreTicsAvantReapparition = 30;
     private int ticsAvantReapparition;
-    // Changements locaux en attente d'envoi par le thread JDBC.
+
+    // Multijoueur, boîte sortante : niveau -> changements locaux pas encore confirmés
     private final java.util.Map<Integer, java.util.Map<Integer, Boolean>> leviersModifies = new HashMap<>();
     private final java.util.Map<Integer, Set<String>> ingredientsModifies = new HashMap<>();
+    // Multijoueur, boîte entrante : dernier état reçu, appliqué au prochain tick
     private java.util.Map<Integer, Boolean> leviersRecus = new HashMap<>();
     private Set<String> ingredientsRecus = new HashSet<>();
     private int niveauEtatsRecus;
     private int niveauPartageDemande;
     private boolean etatMultijoueurEnAttente;
+    /** Traces de synchronisation, activées avec -Dlaquete.sync.debug=true. */
     private static final boolean LOG_SYNC = Boolean.getBoolean("laquete.sync.debug");
 
-    /* ________________________________________________________________
-     * ACTION : Charge un niveau choisi et initialise sa recette.
-     * [INFO] Le niveau choisi devient le point de départ de la progression.
-     * ________________________________________________________________ */
+    /**
+     * @param fichierNiveau niveau de départ, au format "niveauN.txt"
+     */
     public Jeu(String fichierNiveau) {
         this.fichierNiveau = fichierNiveau;
         numeroNiveau = extraireNumeroNiveau(fichierNiveau);
         chargerNiveau(null);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Charge la carte, la recette et le joueur de départ.
-     * ________________________________________________________________ */
+    /**
+     * (Re)construit tout le niveau courant : carte, joueur, entités,
+     * ingrédients et recette.
+     *
+     * @param joueurPrecedent joueur à transférer (PV, score, chef), ou null
+     *                        pour un joueur neuf
+     */
     private void chargerNiveau(Joueur joueurPrecedent) {
         carte = new Map(fichierNiveau);
         joueur = joueurPrecedent == null
@@ -71,33 +95,30 @@ public class Jeu {
         inventaireRecette = new InventaireRecette(ingredients);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Extrait le numéro du niveau depuis son nom de fichier.
-     * ________________________________________________________________ */
+    /** "niveau2.txt" -> 2 */
     private int extraireNumeroNiveau(String nomFichier) {
         String nom = new java.io.File(nomFichier).getName();
         return Integer.parseInt(nom.replace("niveau", "").replace(".txt", ""));
     }
 
-    /* ________________________________________________________________
-     * ACTION : Met à jour le joueur, ramasse les ingrédients et progresse.
-     * [INFO] Une seule transition est effectuée après la collecte complète.
-     * ________________________________________________________________ */
+    /** Tick sans aucune touche appuyée. */
     public void miseAJour() {
         miseAJour(new boolean[10]);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Met à jour le joueur, les mécanismes, les entités et la recette.
-     * [INFO] La mort est affichée avant le respawn, après traitement des dégâts.
-     * [DEPENDANCE] Monstre utilise la collision commune d'ElementDeJeu.
-     * ________________________________________________________________ */
+    /**
+     * Un tick de jeu (ordre décrit en tête de classe).
+     *
+     * @param etatBoutons état des touches, indexé par les constantes Joueur.touche*
+     */
     public synchronized void miseAJour(boolean[] etatBoutons) {
+        // D'abord ce qui vient des autres joueurs
         appliquerNiveauPartageDemande();
         appliquerEtatsRecus();
         if (victoire) {
             return;
         }
+        // Écran de mort : on attend puis on recharge le niveau
         if (ticsAvantReapparition > 0) {
             ticsAvantReapparition--;
             if (ticsAvantReapparition == 0) {
@@ -105,6 +126,8 @@ public class Jeu {
             }
             return;
         }
+
+        // Compétences
         joueur.miseAJourIntentions(etatBoutons);
         if (joueur.consommerSoinDemande()) {
             appliquerSoinMaite();
@@ -119,6 +142,8 @@ public class Jeu {
                 }
             }
         }
+
+        // Monde : portes, puis caisses avant les autres entités qui s'y appuient
         carte.mettreAJourMecanismes(entites);
         carte.miseAJour();
         for (Caisse caisse : carte.getCaisses()) {
@@ -130,6 +155,8 @@ public class Jeu {
             }
             entite.mettreAJour();
         }
+
+        // Dégâts et mort (vide sous la carte ou bloc mortel = mort immédiate)
         for (Entite entite : entites) {
             if (entite instanceof Monstre) {
                 ((Monstre) entite).infligerDegatsAuContact(joueur);
@@ -142,6 +169,8 @@ public class Jeu {
             ticsAvantReapparition = nombreTicsAvantReapparition;
             return;
         }
+
+        // Ramassage des ingrédients (noté aussi pour la synchronisation)
         for (Ingredient ingredient : ingredients) {
             if (!ingredient.isActif()) {
                 continue;
@@ -162,11 +191,11 @@ public class Jeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Soigne Maite et les joueurs vivants dans sa hitbox.
-     * [INFO] Le soin vaut 20 pour cent des PV max, sans dépasser ce maximum.
-     *        La demande a déjà consommé la recharge, même si personne n'est soigné.
-     * ________________________________________________________________ */
+    /**
+     * Soin de Maite : +20 % des PV max pour chaque joueur vivant qui la
+     * touche (elle comprise). La recharge est consommée même si personne
+     * n'est soigné.
+     */
     private void appliquerSoinMaite() {
         int soin = joueur.getPointsDeVieMax() / 5;
         for (Entite entite : entites) {
@@ -180,9 +209,6 @@ public class Jeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Vérifie le chevauchement de deux hitbox.
-     * ________________________________________________________________ */
     private boolean chevauchent(Entite premiereEntite, Entite secondeEntite) {
         int[] premiereHitbox = premiereEntite.getHitbox();
         int[] secondeHitbox = secondeEntite.getHitbox();
@@ -192,18 +218,12 @@ public class Jeu {
                 && secondeEntite.getPositionY() < premiereEntite.getPositionY() + premiereHitbox[1];
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le joueur est entièrement passé sous la carte.
-     * [INFO] y = 0 correspond au bas du décor, le vide est donc en y négatif.
-     * ________________________________________________________________ */
+    /** @return true si le joueur est entièrement sous le bas de la carte (y &lt; 0) */
     private boolean estTombeDansLeVide() {
         int hauteurHitbox = joueur.getHitbox()[1];
         return joueur.getPositionY() + hauteurHitbox < 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le joueur touche un bloc mortel.
-     * ________________________________________________________________ */
     private boolean estEnContactAvecBlocMortel() {
         for (BlocMortel blocMortel : carte.getBlocsMortels()) {
             if (blocMortel.enCollisionAvec(joueur)) {
@@ -213,18 +233,12 @@ public class Jeu {
         return false;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Relance le niveau actuel comme au premier lancement.
-     * [INFO] Carte, ingrédients, inventaire et joueur sont recréés à neuf.
-     * ________________________________________________________________ */
+    /** Recommence le niveau courant de zéro (joueur neuf, objets replacés). */
     private void reset() {
         chargerNiveau(null);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Charge le niveau suivant ou verrouille l’état de victoire.
-     * [INFO] Le nouvel inventaire est initialisé une seule fois avec la carte.
-     * ________________________________________________________________ */
+    /** Charge le niveau suivant en gardant le joueur, ou déclare la victoire après le niveau 3. */
     private void passerAuNiveauSuivant() {
         if (numeroNiveau >= 3) {
             victoire = true;
@@ -236,9 +250,12 @@ public class Jeu {
         chargerNiveau(joueurPrecedent);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine le décor puis les entités du niveau actif.
-     * ________________________________________________________________ */
+    /**
+     * Dessine le niveau : décor, entités, objets, caisses puis interface.
+     * Chaque position du jeu (y vers le haut) est convertie en position
+     * écran (y vers le bas) : yEcran = hauteurCarte - y - hauteurHitbox.
+     * Les ingrédients sont dessinés à part (dessinerIngredients).
+     */
     public void rendu(Graphics2D contexte) {
         carte.rendu(contexte);
         for (Entite entite : entites) {
@@ -260,6 +277,7 @@ public class Jeu {
             caisse.dessiner(contexte, caisse.getPositionX(), yEcran);
         }
         dessinerPointsDeVie(contexte);
+        // Voile noir et message pendant l'attente avant réapparition
         if (ticsAvantReapparition > 0) {
             Composite compositePrecedent = contexte.getComposite();
             contexte.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.72f));
@@ -276,9 +294,7 @@ public class Jeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Affiche les points de vie du joueur.
-     * ________________________________________________________________ */
+    /** Barre de vie (verte, rouge sous un tiers) et jauge de recharge du soin. */
     private void dessinerPointsDeVie(Graphics2D contexte) {
         int largeurBarre = 240;
         int hauteurBarre = 20;
@@ -302,26 +318,31 @@ public class Jeu {
         contexte.fillRect(20, 68, largeurRecharge, 8);
     }
 
-    /** Retourne les niveaux pour lesquels des actions attendent leur envoi. */
+    // ----- Multijoueur : boîte sortante (lue par le thread de synchronisation) -----
+
+    /** @return niveaux ayant des changements locaux non encore publiés */
     public synchronized Set<Integer> getNiveauxModifies() {
         Set<Integer> niveaux = new HashSet<>(leviersModifies.keySet());
         niveaux.addAll(ingredientsModifies.keySet());
         return niveaux;
     }
 
-    /** Copie les états des leviers locaux d'un niveau à publier dans la base. */
+    /** @return copie des leviers modifiés localement (id mécanisme -&gt; actif) pour ce niveau */
     public synchronized java.util.Map<Integer, Boolean> getLeviersModifies(int niveau) {
         java.util.Map<Integer, Boolean> copie = leviersModifies.get(niveau);
         return copie == null ? new HashMap<>() : new HashMap<>(copie);
     }
 
-    /** Copie les identifiants d'ingrédients d'un niveau à publier dans la base. */
+    /** @return copie des identifiants d'ingrédients ramassés localement pour ce niveau */
     public synchronized Set<String> getIngredientsModifies(int niveau) {
         Set<String> copie = ingredientsModifies.get(niveau);
         return copie == null ? new HashSet<>() : new HashSet<>(copie);
     }
 
-    /** Confirme les changements de ce niveau que la base vient d'accepter. */
+    /**
+     * Retire de la boîte sortante ce que la base a enregistré. Un levier
+     * rebasculé entre-temps (valeur différente) reste en attente.
+     */
     public synchronized void confirmerChangementsMultijoueur(int niveau,
             java.util.Map<Integer, Boolean> leviers, Set<String> ingredients) {
         java.util.Map<Integer, Boolean> leviersEnAttente = leviersModifies.get(niveau);
@@ -340,7 +361,13 @@ public class Jeu {
         }
     }
 
-    /** Met en attente l'état partagé; son application sera faite sur le thread du jeu. */
+    // ----- Multijoueur : boîte entrante (remplie par le thread, appliquée par le jeu) -----
+
+    /**
+     * Mémorise l'état partagé lu dans la base (niveau de la partie, leviers,
+     * ingrédients ramassés). Appelée depuis le thread réseau : rien n'est
+     * modifié dans le niveau ici, tout est appliqué au tick suivant.
+     */
     public synchronized void appliquerEtatMultijoueur(int niveau,
             java.util.Map<Integer, Boolean> leviers, Set<String> ingredientsRamasses) {
         if (niveau < 1 || niveau > 3) {
@@ -356,7 +383,10 @@ public class Jeu {
         ingredientsRecus = new HashSet<>(ingredientsRamasses);
     }
 
-    /** Applique le niveau partagé sur le fil du jeu, jamais depuis le thread JDBC. */
+    /**
+     * Si un autre joueur est passé à un niveau supérieur, on le rejoint.
+     * Un niveau inférieur (information périmée) ou invalide est ignoré.
+     */
     private void appliquerNiveauPartageDemande() {
         if (niveauPartageDemande <= 0 || niveauPartageDemande == numeroNiveau) return;
         if (niveauPartageDemande < numeroNiveau) {
@@ -377,7 +407,11 @@ public class Jeu {
         if (LOG_SYNC) System.out.println("[SYNC] Niveau appliqué sur le fil du jeu: " + ancien + " -> " + numeroNiveau);
     }
 
-    /** Applique les états reçus sans les republier comme des changements locaux. */
+    /**
+     * Applique les leviers et ingrédients reçus s'ils concernent le niveau
+     * affiché. Ils ne sont pas ajoutés à la boîte sortante, sinon ils
+     * seraient republiés indéfiniment.
+     */
     private void appliquerEtatsRecus() {
         if (!etatMultijoueurEnAttente || niveauEtatsRecus != numeroNiveau) return;
         etatMultijoueurEnAttente = false;
@@ -402,44 +436,29 @@ public class Jeu {
                 + ": leviers=" + nbLeviers + ", ingrédients=" + nbIngredients);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la carte du niveau actif.
-     * ________________________________________________________________ */
+    // ----- Accesseurs -----
+
     public Map getCarte() {
         return carte;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne les ingrédients du niveau actif.
-     * ________________________________________________________________ */
     public List<Ingredient> getIngredients() {
         return Collections.unmodifiableList(ingredients);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l’inventaire actif.
-     * ________________________________________________________________ */
     public InventaireRecette getInventaireRecette() {
         return inventaireRecette;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la hauteur de la carte en pixels.
-     * ________________________________________________________________ */
     public int getHauteurCartePixels() {
         return carte.getHauteurPixels();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le joueur contrôlé.
-     * ________________________________________________________________ */
     public synchronized Joueur getJoueur() {
         return joueur;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine les ingrédients encore actifs.
-     * ________________________________________________________________ */
+    /** Dessine les ingrédients pas encore ramassés (même conversion de repère que rendu()). */
     public void dessinerIngredients(Graphics2D contexte) {
         for (Ingredient ingredient : ingredients) {
             if (!ingredient.isActif()) {
@@ -451,16 +470,11 @@ public class Jeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le dernier niveau est terminé.
-     * ________________________________________________________________ */
+    /** @return true une fois le dernier niveau terminé */
     public boolean isVictoire() {
         return victoire;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l’index du niveau actuellement actif.
-     * ________________________________________________________________ */
     public synchronized int getNumeroNiveau() {
         return numeroNiveau;
     }

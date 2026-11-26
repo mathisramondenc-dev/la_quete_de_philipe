@@ -9,11 +9,21 @@ import java.io.IOException;
 import java.util.HashMap;
 import javax.imageio.ImageIO;
 
-/* ________________________________________________________________
- * ACTION : Regroupe la position, la hitbox, le sprite et l'état actif.
- * [INFO] L'origine est en bas à gauche, avec l'axe vertical orienté vers le haut.
- * [DEPENDANCE] Entite et ObjetInteractif héritent de cet élément commun.
- * ________________________________________________________________ */
+/**
+ * Racine de tout ce qui est posé dans le monde du jeu (joueurs, monstres,
+ * caisses, ingrédients, leviers, portes...).
+ *
+ * Un élément = une position, une hitbox {largeur, hauteur}, un sprite et un
+ * état actif. Repère : origine en bas à gauche, axe Y vers le haut (comme la
+ * carte), la conversion vers l'écran est faite par l'appelant de dessiner().
+ *
+ * Stratégie de rendu : les images sont chargées une seule fois dans un cache
+ * statique partagé par tous les éléments ; la version miroir (personnage
+ * tourné vers la gauche) est calculée à la demande puis mise en cache elle
+ * aussi. Les sous-classes adaptent l'affichage en redéfinissant quelques
+ * méthodes « crochets » (estVisible, estMiroir, estImageRepeteParTuile...)
+ * plutôt que de réécrire dessiner().
+ */
 public abstract class ElementDeJeu {
     protected int positionX;
     protected int positionY;
@@ -22,6 +32,7 @@ public abstract class ElementDeJeu {
     protected boolean estActif = true;
     private boolean regardeVersLaGauche;
     private static final java.util.Map<String, BufferedImage> cacheImages = new HashMap<>();
+    /** Préfixe impossible dans un vrai chemin : distingue l'image miroir dans le cache. */
     private static final String cleImageMiroir = String.valueOf((char) 0) + "miroir:";
 
     protected ElementDeJeu(int positionX, int positionY) {
@@ -29,16 +40,18 @@ public abstract class ElementDeJeu {
         this.positionY = positionY;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne une image normale ou miroir depuis le cache partagé.
-     * ________________________________________________________________ */
+    /** Raccourci de chargerImageDepuisCache(chemin, false). */
     protected static synchronized BufferedImage chargerImageDepuisCache(String cheminImage) {
         return chargerImageDepuisCache(cheminImage, false);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Charge une image et conserve séparément son éventuel miroir.
-     * ________________________________________________________________ */
+    /**
+     * Renvoie l'image demandée en la chargeant au premier appel seulement.
+     *
+     * @param cheminImage chemin du fichier image
+     * @param imageMiroir true pour obtenir l'image retournée horizontalement
+     * @return l'image, ou null si le fichier est introuvable
+     */
     protected static synchronized BufferedImage chargerImageDepuisCache(
             String cheminImage, boolean imageMiroir) {
         String cleImage = imageMiroir ? cleImageMiroir + cheminImage : cheminImage;
@@ -61,16 +74,16 @@ public abstract class ElementDeJeu {
         return cacheImages.get(cleImage);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Charge une image pour les appels historiques de l'entité.
-     * ________________________________________________________________ */
+    /** Précharge le sprite (conservé pour les anciens appels des sous-classes). */
     protected void chargerImage(String cheminImage) {
         chargerImageDepuisCache(cheminImage);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Charge un fichier depuis son chemin relatif au projet.
-     * ________________________________________________________________ */
+    /**
+     * Lit l'image sur le disque. Si le chemin relatif n'existe pas depuis le
+     * dossier courant, on remonte les dossiers parents : le jeu se lance ainsi
+     * aussi bien depuis NetBeans que depuis un terminal.
+     */
     private static BufferedImage chargerImageDepuisFichier(String cheminImage) {
         File fichier = new File(cheminImage);
         if (cheminImage.startsWith("/sprites/")) {
@@ -91,9 +104,13 @@ public abstract class ElementDeJeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine le sprite ou son rendu de remplacement.
-     * ________________________________________________________________ */
+    /**
+     * Dessine l'élément à l'écran. Sans image, un rectangle rouge de la taille
+     * de la hitbox est tracé pour repérer le problème sans faire planter le jeu.
+     *
+     * @param positionEcranX abscisse écran du coin haut-gauche
+     * @param positionEcranY ordonnée écran du coin haut-gauche
+     */
     public void dessiner(Graphics2D contexte, int positionEcranX, int positionEcranY) {
         if (!estActif || !estVisible()) {
             return;
@@ -112,38 +129,32 @@ public abstract class ElementDeJeu {
         }
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le sprite doit être affiché en miroir horizontal.
-     * ________________________________________________________________ */
+    // ----- Crochets de rendu redéfinis par les sous-classes -----
+
+    /** @return true si le sprite doit être retourné horizontalement */
     protected boolean estMiroir() {
         return regardeVersLaGauche;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si l'élément doit être affiché.
-     * ________________________________________________________________ */
+    /** @return false pour masquer temporairement l'élément (ex. clignotement) */
     protected boolean estVisible() {
         return true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le sprite est répété sur chaque tuile.
-     * ________________________________________________________________ */
+    /** @return true pour répéter le sprite tuile par tuile au lieu de l'étirer */
     protected boolean estImageRepeteParTuile() {
         return false;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la taille de tuile utilisée par le rendu répété.
-     * ________________________________________________________________ */
+    /** @return taille d'une tuile pour le rendu répété (0 si non utilisé) */
     protected int getTailleTuileDessin() {
         return 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine le sprite sur chaque tuile sans étirement.
-     * [INFO] Les bords sont limités aux dimensions de la zone.
-     * ________________________________________________________________ */
+    /**
+     * Pave la zone avec le sprite sans le déformer (blocs larges, lave...).
+     * Un clip coupe les tuiles qui dépassent de la zone.
+     */
     protected void dessinerImageRepeteParTuile(Graphics2D contexte, BufferedImage image,
             int positionEcranX, int positionEcranY, int largeurZone, int hauteurZone,
             int tailleTuile) {
@@ -158,9 +169,7 @@ public abstract class ElementDeJeu {
         contexteTuiles.dispose();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine le contour rouge lorsque le sprite est absent.
-     * ________________________________________________________________ */
+    /** Rendu de secours : contour rouge de la hitbox. */
     protected void dessinerImageManquante(Graphics2D contexte, int positionEcranX,
             int positionEcranY, int largeur, int hauteur) {
         Color couleurPrecedente = contexte.getColor();
@@ -169,78 +178,45 @@ public abstract class ElementDeJeu {
         contexte.setColor(couleurPrecedente);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si cet élément chevauche un autre élément.
-     * [DEPENDANCE] Les deux éléments fournissent leur position et leur hitbox.
-     * ________________________________________________________________ */
+    // ----- Collisions entre éléments (rectangles alignés sur les axes) -----
+
+    /** @return true si les hitbox des deux éléments se chevauchent */
     public boolean enCollisionAvec(ElementDeJeu autre) {
         int[] hitboxAutre = autre.getHitbox();
         return chevaucheRectangle(autre.getPositionX(), autre.getPositionY(),
                 hitboxAutre[0], hitboxAutre[1]);
     }
 
-    /* ________________________________________________________________
-     * ACTION : Teste le chevauchement de cet élément avec un rectangle.
-     * ________________________________________________________________ */
+    /** @return true si la hitbox chevauche le rectangle donné (repère du monde) */
     public boolean chevaucheRectangle(int x, int y, int largeur, int hauteur) {
         int[] dimensionsHitbox = getHitbox();
         return x < positionX + dimensionsHitbox[0] && x + largeur > positionX
                 && y < positionY + dimensionsHitbox[1] && y + hauteur > positionY;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Définit la position de l’élément.
-     * ________________________________________________________________ */
+    // ----- Accesseurs -----
+
     public void definirPosition(int positionX, int positionY) {
         this.positionX = positionX;
         this.positionY = positionY;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Définit la position sur l’axe x.
-     * ________________________________________________________________ */
     public void setPositionX(int positionX) {
         this.positionX = positionX;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Définit la position sur l’axe y.
-     * ________________________________________________________________ */
     public void setPositionY(int positionY) {
         this.positionY = positionY;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la position sur l’axe x.
-     * ________________________________________________________________ */
     public int getPositionX() { return positionX; }
-    /* ________________________________________________________________
-     * ACTION : Retourne la position sur l’axe y.
-     * ________________________________________________________________ */
     public int getPositionY() { return positionY; }
-    /* ________________________________________________________________
-     * ACTION : Indique si l’élément est actif.
-     * ________________________________________________________________ */
     public boolean isActif() { return estActif; }
-    /* ________________________________________________________________
-     * ACTION : Modifie l’état actif de l’élément.
-     * ________________________________________________________________ */
     public void definirActif(boolean estActif) { this.estActif = estActif; }
-    /* ________________________________________________________________
-     * ACTION : Définit l’orientation du sprite.
-     * ________________________________________________________________ */
     public void definirOrientationGauche(boolean regardeVersLaGauche) { this.regardeVersLaGauche = regardeVersLaGauche; }
-    /* ________________________________________________________________
-     * ACTION : Retourne l’orientation du sprite.
-     * ________________________________________________________________ */
     public boolean isRegardeVersLaGauche() { return regardeVersLaGauche; }
-    /* ________________________________________________________________
-     * ACTION : Retourne la hitbox largeur-hauteur.
-     * ________________________________________________________________ */
+    /** @return {largeur, hauteur} en pixels */
     public int[] getHitbox() { return hitbox; }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le chemin du sprite.
-     * ________________________________________________________________ */
     public String getCheminImage() { return cheminImage; }
 }

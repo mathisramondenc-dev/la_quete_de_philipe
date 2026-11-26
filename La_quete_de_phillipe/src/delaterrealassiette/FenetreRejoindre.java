@@ -4,14 +4,20 @@ import java.awt.*;
 import java.sql.SQLException;
 import javax.swing.*;
 
-/** Écran de connexion à un code de partie existant dans MariaDB. */
+/**
+ * Écran « Rejoindre une partie » : le joueur saisit son pseudo, le code de
+ * la partie créée par l'hébergeur et son mot de passe.
+ *
+ * Les champs sont validés (règles d'InfosPartie), puis GestionBDD.rejoindre()
+ * vérifie la partie et le mot de passe et inscrit le joueur ; la fenêtre de
+ * jeu s'ouvre alors. Le bouton « Joueurs en ligne » affiche les pseudos déjà
+ * connectés à ce code, pour vérifier qu'on rejoint la bonne partie.
+ */
 public class FenetreRejoindre extends Fenetre {
     private final JTextField pseudo=new JTextField(15), code=new JTextField(15);
     private final JPasswordField mdp=new JPasswordField(15);
-    /* ________________________________________________________________
-     * ACTION : Construit l'écran "Rejoindre une partie" en plein écran
-     *          (fond avec les 4 chefs, formulaire au centre).
-     * ________________________________________________________________ */
+
+    /** Construit le formulaire plein écran (3 champs, boutons Retour, Joueurs en ligne et Rejoindre). */
     public FenetreRejoindre() {
         super();
         JPanel form = new JPanel(new GridBagLayout());
@@ -40,12 +46,14 @@ public class FenetreRejoindre extends Fenetre {
         finaliserFenetre();
         passerEnPleinEcran();
     }
+    /** Vérifie les champs, s'inscrit dans la partie en base puis ouvre la fenêtre de jeu. */
     private void rejoindre(){
         String p=pseudo.getText().trim(),c=code.getText().trim(),m=new String(mdp.getPassword());String err=InfosPartie.verifierPseudo(p);if(err==null)err=InfosPartie.verifierIdentifiant(c);if(err==null)err=InfosPartie.verifierMotDePasse(m);
         if(err!=null){JOptionPane.showMessageDialog(this,err,"Saisie incorrecte",JOptionPane.ERROR_MESSAGE);return;}
         try{InfosPartie i=GestionBDD.rejoindre(p,c,m);FenetreDeJeu f=new FenetreDeJeu(new Jeu("niveau1.txt"),i);f.setVisible(true);f.demarrer();dispose();}
         catch(SQLException e){JOptionPane.showMessageDialog(this,e.getMessage(),"Connexion impossible",JOptionPane.ERROR_MESSAGE);}
     }
+    /** Affiche dans une boîte de dialogue les joueurs actuellement connectés au code saisi. */
     private void lister(){String c=code.getText().trim();String err=InfosPartie.verifierIdentifiant(c);if(err!=null){JOptionPane.showMessageDialog(this,err,"Code requis",JOptionPane.ERROR_MESSAGE);return;}
         try{java.util.List<String> js=GestionBDD.listerJoueurs(c);JOptionPane.showMessageDialog(this,js.isEmpty()?"Aucun joueur en ligne.":String.join("\n",js),"Joueurs de "+c,JOptionPane.INFORMATION_MESSAGE);}
         catch(SQLException e){JOptionPane.showMessageDialog(this,"Lecture impossible: "+e.getMessage(),"Erreur BDD",JOptionPane.ERROR_MESSAGE);}

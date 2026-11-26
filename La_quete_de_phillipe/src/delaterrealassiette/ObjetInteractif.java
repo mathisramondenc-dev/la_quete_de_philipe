@@ -1,53 +1,46 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Représente un élément du décor avec lequel un joueur agit.
- * [DEPENDANCE] Les objets interactifs partagent la géométrie et le rendu d’ElementDeJeu.
- * ________________________________________________________________ */
+/**
+ * Élément fixe du niveau avec lequel le joueur peut interagir : ingrédient,
+ * levier, porte, échelle, bloc mortel.
+ *
+ * Contrairement à une Entite, il n'est pas soumis à la physique. Il apporte
+ * deux choses en plus d'ElementDeJeu :
+ * - collisionJoueur : indique si l'objet bloque les entités (ex. porte fermée) ;
+ * - interagir() : action déclenchée par le joueur, vide par défaut.
+ *
+ * La référence à la Map sert au rendu en tuiles ; elle vaut null pour les
+ * objets qui n'en ont pas besoin (ingrédients).
+ */
 public abstract class ObjetInteractif extends ElementDeJeu {
     protected final Map map;
     protected boolean collisionJoueur;
 
-    /* ________________________________________________________________
-     * ACTION : Initialise un objet interactif sans dépendance à la carte.
-     * ________________________________________________________________ */
+    /** Objet indépendant de la carte (map vaut null). */
     protected ObjetInteractif(int positionX, int positionY) {
         super(positionX, positionY);
         map = null;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Initialise un objet interactif rattaché à une carte.
-     * [DEPENDANCE] Map fournit les dimensions et le rendu des tuiles.
-     * ________________________________________________________________ */
+    /** Objet dont le rendu dépend des tuiles de la carte. */
     protected ObjetInteractif(Map map, int positionX, int positionY) {
         super(positionX, positionY);
         this.map = map;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Définit si l’objet bloque les entités mobiles.
-     * ________________________________________________________________ */
+    /** @param collisionJoueur true si l'objet doit bloquer les entités */
     public void definirCollisionJoueur(boolean collisionJoueur) {
         this.collisionJoueur = collisionJoueur;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si l’objet bloque les entités mobiles.
-     * ________________________________________________________________ */
     public boolean isCollisionJoueur() {
         return collisionJoueur;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Applique l'interaction du joueur avec cet objet.
-     * ________________________________________________________________ */
+    /** Effet d'une interaction du joueur ; ne fait rien par défaut. */
     public void interagir(Joueur joueur) {
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la taille de tuile pour le rendu dépendant de la carte.
-     * ________________________________________________________________ */
     @Override
     protected int getTailleTuileDessin() {
         return map.getTailleTuile();
