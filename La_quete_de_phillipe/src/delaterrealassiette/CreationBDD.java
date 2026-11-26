@@ -61,7 +61,7 @@ public class CreationBDD {
             // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
             "CREATE TABLE IF NOT EXISTS partie_multi ("
             + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
-            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, niveau_courant INT NOT NULL DEFAULT 1"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
             "CREATE TABLE IF NOT EXISTS joueur_multi ("
             + "session_id CHAR(36) NOT NULL PRIMARY KEY, code_partie VARCHAR(40) NOT NULL, "

@@ -17,6 +17,7 @@ import java.sql.SQLException;
 
 /** Accès JDBC MariaDB et synchronisation facultative des objets du jeu. */
 public class GestionBDD {
+    private static final boolean LOG_SYNC = Boolean.getBoolean("laquete.sync.debug");
     // === MULTIJOUEUR === La gestion historique des tuiles et joueurs est conservée.
     private static final int ID_CARTE = 1;
     private Connection connexion;
@@ -294,55 +295,102 @@ public class GestionBDD {
 
     // === MULTIJOUEUR === Publication des actions locales, puis lecture de l'état partagé.
     private static void synchroniserObjets(Connection c, InfosPartie infos, Jeu jeu) throws SQLException {
-        // Le lot est confirmé seulement après le succès de toutes ses écritures.
-        for (Integer niveauModifie : jeu.getNiveauxModifies()) {
-            java.util.Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
-            Set<String> ingredientsLocaux = jeu.getIngredientsModifies(niveauModifie);
-            String sqlLevier = "INSERT INTO levier_multi(code_partie,niveau_id,levier_id,actif) VALUES (?,?,?,?) "
-                    + "ON DUPLICATE KEY UPDATE actif=VALUES(actif)";
-            try (PreparedStatement p = c.prepareStatement(sqlLevier)) {
-                for (java.util.Map.Entry<Integer, Boolean> entree : leviersLocaux.entrySet()) {
-                    p.setString(1, infos.getIdentifiantPartie());
-                    p.setInt(2, niveauModifie);
-                    p.setInt(3, entree.getKey());
-                    p.setBoolean(4, entree.getValue());
-                    p.addBatch();
+        boolean autoCommit = c.getAutoCommit();
+        java.util.Map<Integer, java.util.Map<Integer, Boolean>> leviersConfirmes = new HashMap<>();
+        java.util.Map<Integer, Set<String>> ingredientsConfirmes = new HashMap<>();
+        try {
+            c.setAutoCommit(false);
+            for (Integer niveauModifie : jeu.getNiveauxModifies()) {
+                java.util.Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
+                Set<String> ingredientsLocaux = jeu.getIngredientsModifies(niveauModifie);
+                String sqlLevier = "INSERT INTO levier_multi(code_partie,niveau_id,levier_id,actif) VALUES (?,?,?,?) "
+                        + "ON DUPLICATE KEY UPDATE actif=VALUES(actif)";
+                try (PreparedStatement p = c.prepareStatement(sqlLevier)) {
+                    for (java.util.Map.Entry<Integer, Boolean> entree : leviersLocaux.entrySet()) {
+                        p.setString(1, infos.getIdentifiantPartie());
+                        p.setInt(2, niveauModifie);
+                        p.setInt(3, entree.getKey());
+                        p.setBoolean(4, entree.getValue());
+                        int resultat = p.executeUpdate();
+                        if (LOG_SYNC) System.out.println("[SYNC] Écriture levier id=" + entree.getKey()
+                                + ", niveau_id=" + niveauModifie + ", code_partie="
+                                + infos.getIdentifiantPartie() + ", résultat executeUpdate=" + resultat);
+                    }
                 }
-                if (!leviersLocaux.isEmpty()) p.executeBatch();
-            }
-            String sqlIngredient = "INSERT IGNORE INTO ingredient_multi(code_partie,niveau_id,ingredient_id) VALUES (?,?,?)";
-            try (PreparedStatement p = c.prepareStatement(sqlIngredient)) {
-                for (String identifiant : ingredientsLocaux) {
-                    p.setString(1, infos.getIdentifiantPartie());
-                    p.setInt(2, niveauModifie);
-                    p.setString(3, identifiant);
-                    p.addBatch();
+                String sqlIngredient = "INSERT IGNORE INTO ingredient_multi(code_partie,niveau_id,ingredient_id) VALUES (?,?,?)";
+                try (PreparedStatement p = c.prepareStatement(sqlIngredient)) {
+                    for (String identifiant : ingredientsLocaux) {
+                        p.setString(1, infos.getIdentifiantPartie());
+                        p.setInt(2, niveauModifie);
+                        p.setString(3, identifiant);
+                        int resultat = p.executeUpdate();
+                        if (LOG_SYNC) System.out.println("[SYNC] Écriture ingrédient id=" + identifiant
+                                + ", niveau_id=" + niveauModifie + ", code_partie="
+                                + infos.getIdentifiantPartie() + ", résultat executeUpdate=" + resultat);
+                    }
                 }
-                if (!ingredientsLocaux.isEmpty()) p.executeBatch();
+                leviersConfirmes.put(niveauModifie, leviersLocaux);
+                ingredientsConfirmes.put(niveauModifie, ingredientsLocaux);
             }
-            jeu.confirmerChangementsMultijoueur(niveauModifie, leviersLocaux, ingredientsLocaux);
+            c.commit();
+        } catch (SQLException e) {
+            try { c.rollback(); } catch (SQLException erreurRollback) { e.addSuppressed(erreurRollback); }
+            throw e;
+        } finally {
+            c.setAutoCommit(autoCommit);
+        }
+        for (Integer niveauModifie : leviersConfirmes.keySet()) {
+            jeu.confirmerChangementsMultijoueur(niveauModifie,
+                    leviersConfirmes.get(niveauModifie), ingredientsConfirmes.get(niveauModifie));
         }
 
-        int niveau = jeu.getNumeroNiveau();
+        // Le niveau est partagé et monotone : un client qui rejoint en niveau 1
+        // ne peut pas faire reculer une partie déjà arrivée aux niveaux suivants.
+        int niveauLocal = jeu.getNumeroNiveau();
+        String majNiveau = "UPDATE partie_multi SET niveau_courant=GREATEST(niveau_courant,?) WHERE code_partie=?";
+        try (PreparedStatement p = c.prepareStatement(majNiveau)) {
+            p.setInt(1, niveauLocal);
+            p.setString(2, infos.getIdentifiantPartie());
+            int resultat = p.executeUpdate();
+            if (LOG_SYNC) System.out.println("[SYNC] Publication niveau local=" + niveauLocal
+                    + ", code_partie=" + infos.getIdentifiantPartie() + ", résultat executeUpdate=" + resultat);
+        }
+        int niveauPartage;
+        try (PreparedStatement p = c.prepareStatement(
+                "SELECT niveau_courant FROM partie_multi WHERE code_partie=?")) {
+            p.setString(1, infos.getIdentifiantPartie());
+            try (ResultSet r = p.executeQuery()) {
+                if (!r.next()) throw new SQLException("Partie multijoueur introuvable: " + infos.getIdentifiantPartie());
+                niveauPartage = r.getInt("niveau_courant");
+            }
+        }
+        if (niveauPartage < 1 || niveauPartage > 3) {
+            throw new SQLException("Niveau multijoueur invalide: " + niveauPartage);
+        }
+        int nbLeviers = 0;
         java.util.Map<Integer, Boolean> leviers = new HashMap<>();
         String selLevier = "SELECT levier_id,actif FROM levier_multi WHERE code_partie=? AND niveau_id=?";
         try (PreparedStatement p = c.prepareStatement(selLevier)) {
             p.setString(1, infos.getIdentifiantPartie());
-            p.setInt(2, niveau);
+            p.setInt(2, niveauPartage);
             try (ResultSet r = p.executeQuery()) {
-                while (r.next()) leviers.put(r.getInt("levier_id"), r.getBoolean("actif"));
+                while (r.next()) { leviers.put(r.getInt("levier_id"), r.getBoolean("actif")); nbLeviers++; }
             }
         }
+        int nbIngredients = 0;
         Set<String> ingredients = new HashSet<>();
         String selIngredient = "SELECT ingredient_id FROM ingredient_multi WHERE code_partie=? AND niveau_id=?";
         try (PreparedStatement p = c.prepareStatement(selIngredient)) {
             p.setString(1, infos.getIdentifiantPartie());
-            p.setInt(2, niveau);
+            p.setInt(2, niveauPartage);
             try (ResultSet r = p.executeQuery()) {
-                while (r.next()) ingredients.add(r.getString("ingredient_id"));
+                while (r.next()) { ingredients.add(r.getString("ingredient_id")); nbIngredients++; }
             }
         }
-        jeu.appliquerEtatMultijoueur(niveau, leviers, ingredients);
+        if (LOG_SYNC) System.out.println("[SYNC] Lecture code_partie=" + infos.getIdentifiantPartie()
+                + ", niveau_id=" + niveauPartage + ": leviers=" + nbLeviers
+                + ", ingrédients=" + nbIngredients);
+        jeu.appliquerEtatMultijoueur(niveauPartage, leviers, ingredients);
     }
 
     // === MULTIJOUEUR === Retrait du seul jeton de session, sans effacer les autres.
