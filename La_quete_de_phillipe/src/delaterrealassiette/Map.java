@@ -240,7 +240,7 @@ public class Map {
                     }
                 }
             }
-            // Fin du fichier : on le ferme pour libérer la ressource
+            // Fin du fichier : on le ferme 
             fichier.close();
 
             // ===== 4) CHARGEMENT DES IMAGES =====
