@@ -33,18 +33,10 @@ public class FenetreConnexion extends Fenetre {
     private final JPasswordField champMotDePasse;
 
     /* ________________________________________________________________
-     * ACTION : Construit le formulaire de connexion.
+     * ACTION : Construit le formulaire de connexion (plein écran).
      * ________________________________________________________________ */
     public FenetreConnexion() {
         super();
-
-        JPanel fond = creerPanneauFond(false); // image des 4 chefs (voir Fenetre)
-        fond.setBackground(COULEUR_FOND);
-        fond.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
-
-        JLabel titre = creerTexte("Se connecter à une partie", 30, true);
-        titre.setHorizontalAlignment(JLabel.CENTER);
-        fond.add(titre, BorderLayout.NORTH);
 
         // ----- Formulaire -----
         champPseudo = new JTextField(15);
@@ -56,21 +48,26 @@ public class FenetreConnexion extends Fenetre {
         ajouterLigneFormulaire(formulaire, 0, "Pseudo :", champPseudo);
         ajouterLigneFormulaire(formulaire, 1, "Identifiant de la partie :", champIdentifiant);
         ajouterLigneFormulaire(formulaire, 2, "Mot de passe :", champMotDePasse);
-        fond.add(formulaire, BorderLayout.CENTER);
 
         // ----- Boutons -----
-        JButton boutonConnexion = creerBouton("Se connecter", 200, 45, 18, e -> seConnecter());
-        JButton boutonRetour = creerBouton("Retour", 120, 45, 16, e -> retourMenu());
-        JPanel boutons = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+        JButton boutonConnexion = creerBouton("Se connecter", t(240), t(56), t(24), e -> seConnecter());
+        JButton boutonRetour = creerBouton("Retour", t(170), t(56), t(22), e -> retourMenu());
+        JPanel boutons = new JPanel(new FlowLayout(FlowLayout.CENTER, t(20), 0));
         boutons.setOpaque(false);
+        boutons.setBorder(BorderFactory.createEmptyBorder(t(20), 0, 0, 0));
         boutons.add(boutonRetour);
         boutons.add(boutonConnexion);
-        fond.add(boutons, BorderLayout.SOUTH);
 
-        setContentPane(fond);
+        JPanel contenu = new JPanel(new BorderLayout());
+        contenu.setOpaque(false);
+        contenu.add(formulaire, BorderLayout.CENTER);
+        contenu.add(boutons, BorderLayout.SOUTH);
+
+        // Plein écran avec les 4 chefs (voir Fenetre)
+        setContentPane(creerEcranPleinEcran("Se connecter à une partie", contenu));
         getRootPane().setDefaultButton(boutonConnexion); // Entrée = Se connecter
-        setMinimumSize(new Dimension(560, 0));
         finaliserFenetre();
+        passerEnPleinEcran();
     }
 
     /* ________________________________________________________________

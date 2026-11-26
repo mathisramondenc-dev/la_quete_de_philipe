@@ -8,6 +8,8 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
 import java.awt.RenderingHints;
@@ -16,10 +18,13 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.net.URL;
 import javax.imageio.ImageIO;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.text.JTextComponent;
 
 /* ________________________________________________________________
  * ACTION : Base commune des fenêtres du jeu (titre, taille, fermeture,
@@ -28,7 +33,11 @@ import javax.swing.JPanel;
  *        cherchée d'abord à côté des fichiers .java (src/delaterrealassiette),
  *        puis dans le dossier images/. Si elle est introuvable, le fond
  *        reste uni (COULEUR_FOND) et le chemin cherché est écrit en console.
- * [DEPENDANCE] FenetreMenu, FenetreConnexion et FenetreDeJeu en héritent.
+ * [INFO] Les fenêtres de l'interface s'ouvrent en plein écran : les tailles
+ *        (polices, boutons) sont prévues pour 1920x1080 et adaptées à
+ *        l'écran réel avec t(...).
+ * [DEPENDANCE] FenetreMenu, FenetreHeberger, FenetreRejoindre,
+ *              FenetreConnexion, FenetreControles et FenetreDeJeu en héritent.
  * ________________________________________________________________ */
 public abstract class Fenetre extends JFrame {
 
@@ -45,6 +54,10 @@ public abstract class Fenetre extends JFrame {
     private static boolean imageFondDejaCherchee = false;
     private static final int HAUTEUR_MUR_POURCENT = 45; // mur sans les chefs
 
+    // Adaptation des tailles à l'écran (1 pour un écran 1920x1080)
+    private static final double HAUTEUR_REFERENCE = 1080.0;
+    private final double facteur;
+
     /* ________________________________________________________________
      * ACTION : Configure la fenêtre sans l'afficher.
      * [INFO] Appeler setVisible(true) après la construction.
@@ -53,6 +66,82 @@ public abstract class Fenetre extends JFrame {
         super(TITRE);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
+        int hauteurEcran = GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getMaximumWindowBounds().height;
+        facteur = Math.max(0.6, Math.min(1.5, hauteurEcran / HAUTEUR_REFERENCE));
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Adapte une taille prévue pour un écran 1920x1080 à l'écran
+     *          réel (plus petit sur un petit écran, plus grand sur un grand).
+     * ________________________________________________________________ */
+    protected int t(int taille) {
+        return (int) Math.round(taille * facteur);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Met la fenêtre en plein écran (taille de l'écran sans la
+     *          barre des tâches, puis maximisée).
+     * [INFO] À appeler à la fin du constructeur, après finaliserFenetre().
+     * ________________________________________________________________ */
+    protected void passerEnPleinEcran() {
+        setResizable(true);
+        setBounds(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds());
+        setExtendedState(getExtendedState() | MAXIMIZED_BOTH);
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Construit un écran plein écran : fond avec les 4 chefs,
+     *          titre du jeu en haut, et au centre une carte sombre avec
+     *          un sous-titre et le contenu (formulaire, liste...).
+     * [DEPENDANCE] Utilisé par FenetreHeberger, FenetreRejoindre,
+     *              FenetreConnexion et FenetreControles.
+     * ________________________________________________________________ */
+    protected JPanel creerEcranPleinEcran(String sousTitre, JComponent contenu) {
+        JPanel fond = creerPanneauFond(true);
+        fond.setPreferredSize(new Dimension(1280, 720)); // si on quitte le plein écran
+
+        JLabel titre = creerTexte(TITRE, t(64), true);
+        titre.setHorizontalAlignment(JLabel.CENTER);
+        titre.setBorder(BorderFactory.createEmptyBorder(t(60), 0, 0, 0));
+        fond.add(titre, BorderLayout.NORTH);
+
+        JPanel carte = creerCarte();
+        JLabel texteSousTitre = creerTexte(sousTitre, t(36), true);
+        texteSousTitre.setHorizontalAlignment(JLabel.CENTER);
+        texteSousTitre.setBorder(BorderFactory.createEmptyBorder(0, 0, t(20), 0));
+        carte.add(texteSousTitre, BorderLayout.NORTH);
+        carte.add(contenu, BorderLayout.CENTER);
+
+        JPanel centre = new JPanel(new GridBagLayout()); // centre la carte
+        centre.setOpaque(false);
+        centre.add(carte);
+        fond.add(centre, BorderLayout.CENTER);
+        return fond;
+    }
+
+    /* ________________________________________________________________
+     * ACTION : Crée une carte sombre semi-transparente aux coins arrondis,
+     *          pour que le texte reste lisible par-dessus l'image de fond.
+     * ________________________________________________________________ */
+    protected JPanel creerCarte() {
+        JPanel carte = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics graphismes) {
+                Graphics2D g = (Graphics2D) graphismes.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                int arrondi = t(24);
+                g.setColor(new Color(15, 10, 8, 200));
+                g.fillRoundRect(0, 0, getWidth(), getHeight(), arrondi, arrondi);
+                g.setColor(new Color(255, 220, 95, 120));
+                g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arrondi, arrondi);
+                g.dispose();
+            }
+        };
+        carte.setOpaque(false);
+        carte.setBorder(BorderFactory.createEmptyBorder(t(30), t(45), t(30), t(45)));
+        return carte;
     }
 
     /* ________________________________________________________________
@@ -89,16 +178,22 @@ public abstract class Fenetre extends JFrame {
     /* ________________________________________________________________
      * ACTION : Ajoute une ligne "intitulé : champ" dans un formulaire.
      * [INFO] Le panneau doit utiliser un GridBagLayout.
+     * [INFO] Les champs de texte sont agrandis selon la taille de l'écran.
      * ________________________________________________________________ */
     protected void ajouterLigneFormulaire(JPanel formulaire, int ligne,
             String intitule, Component champ) {
         GridBagConstraints placement = new GridBagConstraints();
         placement.gridy = ligne;
-        placement.insets = new Insets(6, 6, 6, 6);
+        placement.insets = new Insets(t(10), t(10), t(10), t(10));
+
+        if (champ instanceof JTextComponent) {
+            champ.setFont(new Font("SansSerif", Font.PLAIN, t(22)));
+            champ.setPreferredSize(new Dimension(t(380), t(44)));
+        }
 
         placement.gridx = 0;
         placement.anchor = GridBagConstraints.EAST;
-        formulaire.add(creerTexte(intitule, 16, false), placement);
+        formulaire.add(creerTexte(intitule, t(22), false), placement);
 
         placement.gridx = 1;
         placement.anchor = GridBagConstraints.WEST;
