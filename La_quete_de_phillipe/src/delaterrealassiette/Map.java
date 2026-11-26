@@ -23,12 +23,21 @@ public class Map {
     // Numéros des tuiles que les entités peuvent traverser (0 = ciel)
     private static final int[] TUILES_TRAVERSABLES = {0};
 
+    // Numéro de la tuile ciel, remplacée par l'image de fond si elle existe
+    private static final int TUILE_CIEL = 0;
+
+    // Image de fond (ciel + ville) dessinée derrière les tuiles
+    private static final String CHEMIN_FOND = "images/fond_ville.png";
+
     private int largeur;
     private int hauteur;
     private int tailleTuile;
 
     // toutes les tuiles du tileset, numérotées ligne par ligne
     private BufferedImage[] tuiles;
+
+    // image de fond, null si le fichier est absent
+    private BufferedImage fond;
 
     // decor[i][j] = numéro de la tuile à afficher à la ligne i, colonne j
     private int[][] decor;
@@ -49,37 +58,68 @@ public class Map {
      * [INFO] Lecture séquentielle ligne par ligne, comme dans le poly.
      * ________________________________________________________________ */
     public Map(String nomFichier) {
+        // try : la lecture d'un fichier peut échouer (fichier absent, illisible...).
+        // Si c'est le cas, Java lance une IOException qu'on attrape dans le catch.
         try {
+            // On ouvre le fichier du niveau. BufferedReader permet de le lire
+            // ligne par ligne avec readLine() (renvoie null à la fin du fichier).
             BufferedReader fichier = new BufferedReader(new FileReader(nomFichier));
 
+            // ===== 1) EN-TÊTE DU FICHIER (3 premières lignes) =====
+
+            // Ligne 1 : nom de la carte (ex : "Niveau 1"), on ne s'en sert pas
             fichier.readLine(); // nom de la carte
+
+            // Ligne 2 : chemin de l'image du tileset (ex : "images/tileSetVille32x32.png")
             String cheminTileset = fichier.readLine();
 
-            // "largeur hauteur largeurTuile hauteurTuile"
+            // Ligne 3 : "largeur hauteur largeurTuile hauteurTuile" (ex : "60 33 32 32")
+            // split(" ") découpe la ligne à chaque espace -> tableau de 4 textes
             String[] dimensions = fichier.readLine().split(" ");
-            largeur = Integer.parseInt(dimensions[0]);
-            hauteur = Integer.parseInt(dimensions[1]);
-            tailleTuile = Integer.parseInt(dimensions[2]);
+            largeur = Integer.parseInt(dimensions[0]);     // nombre de colonnes de tuiles
+            hauteur = Integer.parseInt(dimensions[1]);     // nombre de lignes de tuiles
+            tailleTuile = Integer.parseInt(dimensions[2]); // taille d'une tuile en pixels (carrée)
 
-            // Une ligne du fichier = une ligne du décor
+            // ===== 2) GRILLE DU DÉCOR =====
+
+            // Une ligne du fichier = une ligne du décor.
+            // Chaque nombre est le numéro d'une tuile du tileset (0 = ciel, 2 = trottoir, 3 = briques...)
             decor = new int[hauteur][largeur];
             int i = 0;
             while (i < hauteur) {
                 String ligne = fichier.readLine();
+                // trim() enlève les espaces au début et à la fin,
+                // split("\\s+") découpe sur un ou plusieurs espaces/tabulations
                 String[] champs = ligne.trim().split("\\s+");
                 for (int j = 0; j < largeur; j++) {
+                    // On convertit le texte en entier et on le range dans la case (i, j)
                     decor[i][j] = Integer.parseInt(champs[j]);
                 }
                 i++;
             }
+
+            // ===== 3) SECTIONS APRÈS LA GRILLE (SPAWN, INGREDIENTS, MECANISMES, MONSTRES) =====
+            // Le fichier contient ensuite des titres de section, suivis de lignes de données.
+            // On lit jusqu'à la fin du fichier en retenant dans quelle section on se trouve.
+
             String ligne;
-            String section = "";
+            String section = ""; // section en cours de lecture ("" tant qu'aucun titre n'a été lu)
+
+            // Chaque ligne PORTE reçoit son propre numéro (0, 1, 2...) pour la distinguer
+            // des autres portes, même si elles sont reliées au même levier.
             int prochainIdentifiantPorte = 0;
+
+            // On lit une ligne ; tant qu'elle n'est pas null, le fichier n'est pas fini
             while ((ligne = fichier.readLine()) != null) {
                 ligne = ligne.trim();
+
+                // Ligne vide : on l'ignore et on passe à la suivante
                 if (ligne.isEmpty()) {
                     continue;
                 }
+
+                // Si la ligne est un titre de section, on change de section
+                // (toUpperCase pour accepter "Spawn", "spawn", "SPAWN"...)
                 String sectionCandidate = ligne.toUpperCase(java.util.Locale.ROOT);
                 if ("SPAWN".equals(sectionCandidate)
                         || "INGREDIENTS".equals(sectionCandidate)
@@ -88,30 +128,55 @@ public class Map {
                     section = sectionCandidate;
                     continue;
                 }
+
+                // Sinon c'est une ligne de données : on la découpe en morceaux
                 String[] champs = ligne.split("\\s+");
+
+                // RAPPEL DES COORDONNÉES :
+                // - dans le fichier, (colonne, ligneGrille) est compté en tuiles,
+                //   ligneGrille partant du HAUT de la carte (comme decor[i][j]) ;
+                // - les objets du jeu sont en pixels, avec y qui part du BAS et monte.
+                // Pour convertir le bas d'une case : y = hauteurPixels - (ligneGrille + 1) * tailleTuile
+
                 if ("SPAWN".equals(section)) {
+                    // Format : "colonne ligne" -> position de départ du joueur
                     int colonne = Integer.parseInt(champs[0]);
                     int ligneGrille = Integer.parseInt(champs[1]);
                     positionDepart = new int[]{colonne * tailleTuile,
                             getHauteurPixels() - (ligneGrille + 1) * tailleTuile};
+
                 } else if ("INGREDIENTS".equals(section)) {
+                    // Format : "TYPE colonne ligne" (ex : "TOMATE 21 16")
+                    // valueOf transforme le texte en valeur de l'énumération TypeIngredient
                     TypeIngredient type = TypeIngredient.valueOf(champs[0]);
                     int colonne = Integer.parseInt(champs[1]);
                     int ligneGrille = Integer.parseInt(champs[2]);
+                    // L'ingrédient est plus petit qu'une tuile : on le centre dans sa case
                     int tailleElement = Ingredient.TAILLE_HITBOX;
                     int positionX = colonne * tailleTuile + (tailleTuile - tailleElement) / 2;
                     int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile
                             + (tailleTuile - tailleElement) / 2;
                     ingredients.add(new Ingredient(type, positionX, positionY));
+
                 } else if ("MONSTRES".equals(section)) {
+                    // Format : "TYPE colonne ligne" (ex : "RAT 20 17")
+                    // On ne crée pas le monstre ici : on garde juste son type et sa position,
+                    // c'est Jeu qui le crée ensuite avec getPositionsMonstres().
                     String type = champs[0].toUpperCase(java.util.Locale.ROOT);
                     int colonne = Integer.parseInt(champs[1]);
                     int ligneGrille = Integer.parseInt(champs[2]);
                     int positionX = colonne * tailleTuile;
+                    // Pas de "+ 1" ici : les pieds du monstre sont posés sur le HAUT
+                    // de la case indiquée (la case donnée est le sol sous le monstre)
                     int positionY = getHauteurPixels() - ligneGrille * tailleTuile;
                     positionsMonstres.add(new PositionMonstre(type, positionX, positionY));
+
                 } else if ("MECANISMES".equals(section)) {
+                    // Le premier mot indique le type de mécanisme
+
                     if ("MORTEL".equalsIgnoreCase(champs[0])) {
+                        // Format : "MORTEL colonne ligne [largeur] [hauteur]" (en tuiles)
+                        // La largeur et la hauteur sont facultatives : 1 par défaut
                         int colonne = Integer.parseInt(champs[1]);
                         int ligneGrille = Integer.parseInt(champs[2]);
                         int largeurMortelle = champs.length > 3
@@ -119,37 +184,55 @@ public class Map {
                         int hauteurMortelle = champs.length > 4
                                 ? Integer.parseInt(champs[4]) : 1;
                         int positionX = colonne * tailleTuile;
+                        // ligneGrille est la ligne du HAUT de la zone : le bas de la zone
+                        // est donc hauteurMortelle tuiles plus bas
                         int positionY = getHauteurPixels()
                                 - (ligneGrille + hauteurMortelle) * tailleTuile;
                         objetsDecor.add(new BlocMortel(this, positionX, positionY,
                                 largeurMortelle * tailleTuile, hauteurMortelle * tailleTuile));
+
                     } else if ("ECHELLE".equalsIgnoreCase(champs[0])) {
+                        // Format : "ECHELLE colonne ligne largeur hauteur" (en tuiles)
                         int colonne = Integer.parseInt(champs[1]);
                         int ligneGrille = Integer.parseInt(champs[2]);
                         int largeurEchelle = Integer.parseInt(champs[3]);
                         int hauteurEchelle = Integer.parseInt(champs[4]);
                         int positionX = colonne * tailleTuile;
+                        // Même calcul que MORTEL : ligneGrille = haut de l'échelle
                         int positionY = getHauteurPixels() - (ligneGrille + hauteurEchelle) * tailleTuile;
                         objetsDecor.add(new Echelle(this, positionX, positionY,
                                 largeurEchelle * tailleTuile, hauteurEchelle * tailleTuile));
+
                     } else if ("CAISSE".equalsIgnoreCase(champs[0])) {
+                        // Format : "CAISSE colonne ligne" -> caisse d'une tuile
+                        // Rangée à part (liste caisses) car elle bouge et bloque les entités
                         int colonne = Integer.parseInt(champs[1]);
                         int ligneGrille = Integer.parseInt(champs[2]);
                         int positionX = colonne * tailleTuile;
                         int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
                         caisses.add(new Caisse(this, positionX, positionY));
+
                     } else {
+                        // LEVIER et PORTE commencent pareil : "TYPE identifiant colonne ligne ..."
+                        // L'identifiant relie un levier aux portes qu'il commande
+                        // (LEVIER 1 ... actionne toutes les PORTE 1 ...)
                         int identifiant = Integer.parseInt(champs[1]);
                         int colonne = Integer.parseInt(champs[2]);
                         int ligneGrille = Integer.parseInt(champs[3]);
                         int positionX = colonne * tailleTuile;
                         int positionY = getHauteurPixels() - (ligneGrille + 1) * tailleTuile;
+
                         if ("LEVIER".equalsIgnoreCase(champs[0])) {
+                            // Format : "LEVIER identifiant colonne ligne"
                             objetsDecor.add(new Levier(this, identifiant, positionX, positionY));
+
                         } else if ("PORTE".equalsIgnoreCase(champs[0])) {
+                            // Format : "PORTE identifiant colonne ligne largeur hauteur FERMEE|OUVERTE"
                             int largeurPorte = Integer.parseInt(champs[4]) * tailleTuile;
                             int hauteurPorte = Integer.parseInt(champs[5]) * tailleTuile;
+                            // État de départ de la porte (avant que le levier soit actionné)
                             boolean fermee = "FERMEE".equalsIgnoreCase(champs[6]);
+                            // prochainIdentifiantPorte++ : on donne le numéro actuel puis on l'augmente
                             objetsDecor.add(new BlocPorte(this, identifiant,
                                     prochainIdentifiantPorte++, positionX, positionY,
                                     largeurPorte, hauteurPorte, fermee));
@@ -157,15 +240,28 @@ public class Map {
                     }
                 }
             }
+            // Fin du fichier : on le ferme pour libérer la ressource
             fichier.close();
 
+            // ===== 4) CHARGEMENT DES IMAGES =====
+
+            // On charge le tileset seulement s'il existe, puis on le découpe en tuiles
+            // (tuiles[0], tuiles[1]... numérotées ligne par ligne dans l'image)
             if (new File(cheminTileset).isFile()) {
                 BufferedImage tileset = ImageIO.read(new File(cheminTileset));
-                if (tileset != null) {
+                if (tileset != null) { // null si le fichier n'est pas une image valide
                     decouperTileset(tileset);
                 }
             }
+
+            // Image de fond (ciel + ville) : facultative, rendu() s'en passe si elle manque
+            if (new File(CHEMIN_FOND).isFile()) {
+                fond = ImageIO.read(new File(CHEMIN_FOND));
+            }
+
         } catch (IOException e) {
+            // En cas d'erreur de lecture, on affiche le détail de l'erreur dans la console
+            // (la carte reste alors vide ou incomplète)
             e.printStackTrace();
         }
     }
@@ -550,15 +646,23 @@ public class Map {
     }
 
     /* ________________________________________________________________
-     * ACTION : Dessine le décor tuile par tuile.
+     * ACTION : Dessine l'image de fond puis le décor tuile par tuile.
+     * [INFO] Avec un fond, les tuiles ciel ne sont pas dessinées
+     *        pour laisser voir la ville derrière.
      * ________________________________________________________________ */
     public void rendu(Graphics2D contexte) {
+        if (fond != null) {
+            contexte.drawImage(fond, 0, 0, getLargeurPixels(), getHauteurPixels(), null);
+        }
         // i parcourt les lignes, j parcourt les colonnes
         if (tuiles == null) {
             return;
         }
         for (int i = 0; i < hauteur; i++) {
             for (int j = 0; j < largeur; j++) {
+                if (fond != null && decor[i][j] == TUILE_CIEL) {
+                    continue;
+                }
                 contexte.drawImage(tuiles[decor[i][j]], j * tailleTuile, i * tailleTuile, null);
             }
         }
