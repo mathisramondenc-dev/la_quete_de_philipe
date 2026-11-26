@@ -8,13 +8,37 @@ import javax.swing.*;
 public class FenetreRejoindre extends Fenetre {
     private final JTextField pseudo=new JTextField(15), code=new JTextField(15);
     private final JPasswordField mdp=new JPasswordField(15);
+    /* ________________________________________________________________
+     * ACTION : Construit l'écran "Rejoindre une partie" en plein écran
+     *          (fond avec les 4 chefs, formulaire au centre).
+     * ________________________________________________________________ */
     public FenetreRejoindre() {
-        super(); JPanel fond=creerPanneauFond(false);fond.setBackground(COULEUR_FOND);fond.setBorder(BorderFactory.createEmptyBorder(20,30,20,30));
-        JLabel titre=creerTexte("Rejoindre une partie",30,true);titre.setHorizontalAlignment(JLabel.CENTER);fond.add(titre,BorderLayout.NORTH);
-        JPanel form=new JPanel(new GridBagLayout());form.setOpaque(false);ajouterLigneFormulaire(form,0,"Pseudo :",pseudo);ajouterLigneFormulaire(form,1,"Code de partie :",code);ajouterLigneFormulaire(form,2,"Mot de passe :",mdp);fond.add(form,BorderLayout.CENTER);
-        JButton back=creerBouton("Retour",120,45,16,e->retour()); JButton go=creerBouton("Rejoindre",170,45,18,e->rejoindre());
-        JPanel buttons=new JPanel(new FlowLayout());buttons.setOpaque(false);buttons.add(back);buttons.add(creerBouton("Joueurs en ligne",170,45,14,e->lister()));buttons.add(go);fond.add(buttons,BorderLayout.SOUTH);
-        setContentPane(fond);getRootPane().setDefaultButton(go);setMinimumSize(new Dimension(560,0));finaliserFenetre();
+        super();
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
+        ajouterLigneFormulaire(form, 0, "Pseudo :", pseudo);
+        ajouterLigneFormulaire(form, 1, "Code de partie :", code);
+        ajouterLigneFormulaire(form, 2, "Mot de passe :", mdp);
+
+        JButton back = creerBouton("Retour", t(170), t(56), t(22), e -> retour());
+        JButton liste = creerBouton("Joueurs en ligne", t(240), t(56), t(20), e -> lister());
+        JButton go = creerBouton("Rejoindre", t(220), t(56), t(24), e -> rejoindre());
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, t(20), 0));
+        buttons.setOpaque(false);
+        buttons.setBorder(BorderFactory.createEmptyBorder(t(20), 0, 0, 0));
+        buttons.add(back);
+        buttons.add(liste);
+        buttons.add(go);
+
+        JPanel contenu = new JPanel(new BorderLayout());
+        contenu.setOpaque(false);
+        contenu.add(form, BorderLayout.CENTER);
+        contenu.add(buttons, BorderLayout.SOUTH);
+
+        setContentPane(creerEcranPleinEcran("Rejoindre une partie", contenu));
+        getRootPane().setDefaultButton(go);
+        finaliserFenetre();
+        passerEnPleinEcran();
     }
     private void rejoindre(){
         String p=pseudo.getText().trim(),c=code.getText().trim(),m=new String(mdp.getPassword());String err=InfosPartie.verifierPseudo(p);if(err==null)err=InfosPartie.verifierIdentifiant(c);if(err==null)err=InfosPartie.verifierMotDePasse(m);

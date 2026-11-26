@@ -3,7 +3,6 @@ package delaterrealassiette;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -13,30 +12,22 @@ import javax.swing.JPanel;
 
 /* ________________________________________________________________
  * ACTION : Menu d'accueil avec le titre et le choix du mode de jeu.
- * [INFO] En haut : "Se connecter à une partie" (multijoueur).
+ * [INFO] En haut : Héberger / Rejoindre (multijoueur), puis Contrôles.
  *        En bas : lancement direct d'un niveau ou de l'écran de
  *        debug, pratique pour tester sans passer par la connexion.
  * [INFO] Le menu s'ouvre en plein écran (fenêtre maximisée).
  * [INFO] L'image de fond (les 4 chefs) est gérée par Fenetre : elle
  *        remplit tout l'écran sans être déformée.
  * [DEPENDANCE] Main ouvre cette fenêtre. Elle ouvre FenetreHeberger,
- *              FenetreRejoindre ou directement FenetreDeJeu.
+ *              FenetreRejoindre, FenetreControles ou directement FenetreDeJeu.
  * ________________________________________________________________ */
 public class FenetreMenu extends Fenetre {
-
-    // Les tailles du titre et des boutons sont prévues pour un écran
-    // 1920x1080 et adaptées à l'écran réel (petit écran = plus petits)
-    private static final double HAUTEUR_REFERENCE = 1080.0;
-    private final double facteur;
 
     /* ________________________________________________________________
      * ACTION : Construit le menu.
      * ________________________________________________________________ */
     public FenetreMenu() {
         super();
-        int hauteurEcran = GraphicsEnvironment.getLocalGraphicsEnvironment()
-                .getMaximumWindowBounds().height;
-        facteur = Math.max(0.6, Math.min(1.5, hauteurEcran / HAUTEUR_REFERENCE));
 
         JPanel fond = creerPanneauFond(true); // image des 4 chefs (voir Fenetre)
         fond.setPreferredSize(new Dimension(1280, 720)); // taille si on quitte le plein écran
@@ -65,7 +56,13 @@ public class FenetreMenu extends Fenetre {
                 e -> ouvrir(new FenetreRejoindre())), cMulti);
         centre.add(multijoueur, placement);
 
-        // Ligne 2 : tests rapides (sans multijoueur)
+        // Ligne 2 : écran des contrôles (touches du jeu)
+        placement.gridy = 1;
+        placement.insets = new Insets(0, t(15), t(40), t(15));
+        centre.add(creerBouton("Contrôles", t(300), t(60), t(24),
+                e -> ouvrir(new FenetreControles())), placement);
+
+        // Ligne 3 : tests rapides (sans multijoueur)
         JPanel tests = new JPanel(new GridBagLayout());
         tests.setOpaque(false);
         GridBagConstraints placementTest = new GridBagConstraints();
@@ -76,7 +73,7 @@ public class FenetreMenu extends Fenetre {
         tests.add(creerBouton("Niveau 3", t(140), t(42), t(17), e -> lancerPartie(new Jeu("niveau3.txt"))), placementTest);
         tests.add(creerBouton("Debug", t(140), t(42), t(17), e -> lancerPartie(null)), placementTest);
 
-        placement.gridy = 1;
+        placement.gridy = 2;
         placement.insets = new Insets(0, 0, 0, 0);
         centre.add(tests, placement);
 
@@ -84,23 +81,12 @@ public class FenetreMenu extends Fenetre {
 
         setContentPane(fond);
         finaliserFenetre();
-        // Plein écran : taille de l'écran (sans la barre des tâches), puis maximisée
-        setResizable(true);
-        setBounds(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds());
-        setExtendedState(getExtendedState() | MAXIMIZED_BOTH);
-    }
-
-    /* ________________________________________________________________
-     * ACTION : Adapte une taille (prévue pour 1920x1080) à l'écran réel.
-     * ________________________________________________________________ */
-    private int t(int taille) {
-        return (int) Math.round(taille * facteur);
+        passerEnPleinEcran();
     }
 
 
-
     /* ________________________________________________________________
-     * ACTION : Ouvre une autre fenêtre (connexion) et ferme le menu.
+     * ACTION : Ouvre une autre fenêtre et ferme le menu.
      * ________________________________________________________________ */
     private void ouvrir(Fenetre fenetre) {
         fenetre.setVisible(true);
