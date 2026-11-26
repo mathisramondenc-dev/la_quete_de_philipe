@@ -30,6 +30,9 @@ public class CreationBDD {
             insererCarteInitiale(connexion);
             System.out.println("Base " + BASE + " créée/vérifiée; tables et avatars prêts.");
         } catch (SQLException e) {
+            System.err.println("Échec de création/vérification du schéma MariaDB : "
+                    + e.getMessage() + " (SQLState=" + e.getSQLState()
+                    + ", code=" + e.getErrorCode() + ")");
             e.printStackTrace();
         }
     }
@@ -58,7 +61,7 @@ public class CreationBDD {
             + "degats INT NOT NULL, hitbox_largeur INT NOT NULL, hitbox_hauteur INT NOT NULL, "
             + "chemin_image VARCHAR(255) NOT NULL"
             + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
-            // === MULTIJOUEUR === nouvelles tables ajoutées sans modifier le schéma historique.
+            // === MULTIJOUEUR === Schéma neuf; les clients migrent aussi les tables préexistantes au démarrage.
             "CREATE TABLE IF NOT EXISTS partie_multi ("
             + "code_partie VARCHAR(40) NOT NULL PRIMARY KEY, mot_de_passe VARCHAR(255) NOT NULL, "
             + "cree_le TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, niveau_courant INT NOT NULL DEFAULT 1"
