@@ -1,8 +1,12 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Énumère les ingrédients et leurs noms ainsi que leurs sprites.
- * ________________________________________________________________ */
+/**
+ * Liste des ingrédients du jeu, chacun avec son nom affiché et son sprite.
+ *
+ * Le nom de la constante (TOMATE, PAIN...) est celui écrit dans la section
+ * INGREDIENTS des fichiers de niveau ; ajouter un ingrédient = ajouter une
+ * ligne ici et son image dans images/ingredients/.
+ */
 public enum TypeIngredient {
     TOMATE("Tomate", "images/ingredients/tomate.png"),
     FROMAGE("Fromage", "images/ingredients/fromage.png"),
@@ -28,13 +32,8 @@ public enum TypeIngredient {
         this.cheminSprite = cheminSprite;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le nom français de l’ingrédient.
-     * ________________________________________________________________ */
+    /** @return nom en français, avec accents, pour l'affichage */
     public String getNom() { return nom; }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le chemin de son image.
-     * ________________________________________________________________ */
     public String getCheminSprite() { return cheminSprite; }
 }

@@ -1,29 +1,26 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Représente une échelle traversable et son sommet praticable.
- * ________________________________________________________________ */
+/**
+ * Échelle du niveau.
+ *
+ * Elle ne bloque pas : on la traverse librement. Ce sont la Map et Entite
+ * qui lui donnent son comportement : dans l'échelle, les touches haut/bas
+ * font monter ou descendre sans gravité, et son sommet sert de sol sur
+ * lequel on peut marcher. Le sprite est répété sur chaque tuile.
+ */
 public class Echelle extends ObjetInteractif {
-    /* ________________________________________________________________
-     * ACTION : Initialise l'échelle avec sa position et ses dimensions.
-     * ________________________________________________________________ */
+    /** Position et dimensions en pixels. */
     public Echelle(Map map, int positionX, int positionY, int largeur, int hauteur) {
         super(map, positionX, positionY);
         hitbox = new int[]{largeur, hauteur};
         cheminImage = "images/echelle.png";
     }
 
-    /* ________________________________________________________________
-     * ACTION : Répète le sprite de l'échelle sur chaque tuile.
-     * ________________________________________________________________ */
     @Override
     protected boolean estImageRepeteParTuile() {
         return true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la taille de tuile du sprite répété.
-     * ________________________________________________________________ */
     @Override
     protected int getTailleTuileDessin() {
         return map.getTailleTuile();

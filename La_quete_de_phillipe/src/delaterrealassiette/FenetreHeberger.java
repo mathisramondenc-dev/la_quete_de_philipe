@@ -4,14 +4,20 @@ import java.awt.*;
 import java.sql.SQLException;
 import javax.swing.*;
 
-/** Création d'une salle BDD partagée et lancement du premier client. */
+/**
+ * Écran « Héberger une partie » : le joueur choisit son pseudo, un code de
+ * partie à communiquer aux autres et un mot de passe.
+ *
+ * Après validation des champs (règles d'InfosPartie), la partie est créée
+ * dans la base par GestionBDD.heberger(), puis la fenêtre de jeu s'ouvre au
+ * niveau 1. Si le code est déjà pris ou la base inaccessible, un message
+ * d'erreur s'affiche et on reste sur le formulaire.
+ */
 public class FenetreHeberger extends Fenetre {
     private final JTextField pseudo=new JTextField(15), code=new JTextField(15);
     private final JPasswordField mdp=new JPasswordField(15);
-    /* ________________________________________________________________
-     * ACTION : Construit l'écran "Héberger une partie" en plein écran
-     *          (fond avec les 4 chefs, formulaire au centre).
-     * ________________________________________________________________ */
+
+    /** Construit le formulaire plein écran (3 champs, boutons Retour et Créer ; Entrée = Créer). */
     public FenetreHeberger() {
         super();
         JPanel form = new JPanel(new GridBagLayout());
@@ -38,12 +44,14 @@ public class FenetreHeberger extends Fenetre {
         finaliserFenetre();
         passerEnPleinEcran();
     }
+    /** Vérifie les champs (premier message d'erreur affiché), crée la partie en base puis la lance. */
     private void creer() {
         String p=pseudo.getText().trim(), c=code.getText().trim(), m=new String(mdp.getPassword());
         String erreur=InfosPartie.verifierPseudo(p); if(erreur==null) erreur=InfosPartie.verifierIdentifiant(c); if(erreur==null) erreur=InfosPartie.verifierMotDePasse(m);
         if(erreur!=null){JOptionPane.showMessageDialog(this,erreur,"Saisie incorrecte",JOptionPane.ERROR_MESSAGE);return;}
         try { lancer(GestionBDD.heberger(p,c,m)); } catch(SQLException e){JOptionPane.showMessageDialog(this,"Création impossible (code déjà utilisé ou BDD inaccessible): "+e.getMessage(),"Erreur BDD",JOptionPane.ERROR_MESSAGE);}
     }
+    /** Ouvre la fenêtre de jeu multijoueur au niveau 1 et ferme le formulaire. */
     private void lancer(InfosPartie i){FenetreDeJeu f=new FenetreDeJeu(new Jeu("niveau1.txt"),i);f.setVisible(true);f.demarrer();dispose();}
     private void retour(){new FenetreMenu().setVisible(true);dispose();}
 }

@@ -1,37 +1,31 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Représente une caisse soumise à la gravité et aux collisions.
- * ________________________________________________________________ */
+/**
+ * Caisse d'une tuile que seul Etchebest peut pousser.
+ *
+ * C'est une Entite : elle tombe et bloque les autres entités comme un mur.
+ * Elle n'avance jamais d'elle-même (vitesse nulle) ; c'est la Map qui la
+ * déplace quand elle est poussée (Map.pousserCaisse). Elle peut aussi
+ * reposer sur le sommet d'une échelle.
+ */
 public class Caisse extends Entite {
-    /* ________________________________________________________________
-     * ACTION : Initialise une caisse d'une tuile à la position indiquée.
-     * ________________________________________________________________ */
     public Caisse(Map map, int positionX, int positionY) {
         super(map, positionX, positionY);
         hitbox = new int[]{map.getTailleTuile(), map.getTailleTuile()};
         cheminImage = "images/caisse.png";
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la vitesse horizontale de la caisse.
-     * ________________________________________________________________ */
     @Override
     public int getVitesse() {
         return 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique que la caisse ne peut pas sauter.
-     * ________________________________________________________________ */
     @Override
     public int getForceSaut() {
         return 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Actualise la gravité de la caisse.
-     * ________________________________________________________________ */
+    /** Tick : uniquement la chute sous l'effet de la gravité. */
     @Override
     public void mettreAJour() {
         vitesseX = 0;
@@ -43,9 +37,10 @@ public class Caisse extends Entite {
         deplacer();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Détecte le support sous la caisse sans compter sa propre hitbox.
-     * ________________________________________________________________ */
+    /**
+     * Version propre aux caisses : la caisse est ignorée dans le test de
+     * collision, sinon elle se considérerait toujours posée sur elle-même.
+     */
     @Override
     protected boolean estAuSol() {
         return (map.collisionHitboxSansCaisses(positionX, positionY - 1,

@@ -1,15 +1,19 @@
-// InfosPartie.java
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Regroupe les informations saisies dans la fenêtre
- *          "Se connecter à une partie" : pseudo, identifiant de la
- *          partie et mot de passe.
- * [INFO] Contient aussi les règles de vérification des champs.
- * [DEPENDANCE] FenetreConnexion la crée, puis FenetreDeJeu la reçoit.
- *              Plus tard : GestionBDD pourra l'utiliser pour vérifier
- *              la partie et le mot de passe.
- * ________________________________________________________________ */
+/**
+ * Informations de connexion d'un joueur à une partie multijoueur : pseudo,
+ * code de la partie, mot de passe et identifiant de session.
+ *
+ * Objet immuable, créé par GestionBDD une fois l'entrée dans la partie
+ * acceptée, puis transmis à la fenêtre de jeu et à la synchronisation.
+ * L'identifiant de session (unique pour chaque instance du jeu lancée) est
+ * ce qui distingue ce joueur dans la base.
+ *
+ * La classe regroupe aussi les règles de validation des champs saisis, pour
+ * que tous les formulaires appliquent exactement les mêmes. Chaque méthode
+ * verifier...() renvoie null si la valeur est correcte, sinon le message
+ * d'erreur à afficher.
+ */
 public class InfosPartie {
 
     public static final int PSEUDO_LONGUEUR_MIN = 3;
@@ -20,18 +24,14 @@ public class InfosPartie {
     private final String pseudo;
     private final String identifiantPartie;
     private final String motDePasse;
-    // === MULTIJOUEUR === Identifiant opaque propre à cette instance de jeu.
     private final String sessionId;
 
-    /* ________________________________________________________________
-     * ACTION : Crée les informations de connexion d'un joueur.
-     * [INFO] Les champs doivent avoir été vérifiés avant (verifier...).
-     * ________________________________________________________________ */
+    /** Informations sans session (hors base de données). Les champs doivent déjà être vérifiés. */
     public InfosPartie(String pseudo, String identifiantPartie, String motDePasse) {
         this(pseudo, identifiantPartie, motDePasse, null);
     }
 
-    // === MULTIJOUEUR ===
+    /** @param sessionId identifiant de ce joueur dans la base, attribué par GestionBDD */
     public InfosPartie(String pseudo, String identifiantPartie, String motDePasse, String sessionId) {
         this.pseudo = pseudo;
         this.identifiantPartie = identifiantPartie;
@@ -39,13 +39,9 @@ public class InfosPartie {
         this.sessionId = sessionId;
     }
 
-    // ===================== Vérifications =====================
-    // Chaque méthode retourne null si le champ est valide,
-    // sinon le message d'erreur à afficher.
+    // ----- Validation des champs (null = valide, sinon message d'erreur) -----
 
-    /* ________________________________________________________________
-     * ACTION : Vérifie un pseudo.
-     * ________________________________________________________________ */
+    /** Pseudo : 3 à 15 caractères, lettres sans accent, chiffres, _ et -. */
     public static String verifierPseudo(String pseudo) {
         if (pseudo == null || pseudo.trim().isEmpty()) {
             return "Le pseudo est obligatoire.";
@@ -61,9 +57,7 @@ public class InfosPartie {
         return null;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Vérifie un identifiant de partie.
-     * ________________________________________________________________ */
+    /** Code de partie : 20 caractères au plus, mêmes caractères autorisés que le pseudo. */
     public static String verifierIdentifiant(String identifiant) {
         if (identifiant == null || identifiant.trim().isEmpty()) {
             return "L'identifiant de la partie est obligatoire.";
@@ -79,9 +73,7 @@ public class InfosPartie {
         return null;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Vérifie un mot de passe (obligatoire).
-     * ________________________________________________________________ */
+    /** Mot de passe : obligatoire, 4 caractères au moins. */
     public static String verifierMotDePasse(String motDePasse) {
         if (motDePasse == null || motDePasse.isEmpty()) {
             return "Le mot de passe est obligatoire.";
@@ -93,7 +85,7 @@ public class InfosPartie {
         return null;
     }
 
-    // ===================== Accesseurs =====================
+    // ----- Accesseurs -----
 
     public String getPseudo() {
         return pseudo;
@@ -107,12 +99,11 @@ public class InfosPartie {
         return motDePasse;
     }
 
-    // === MULTIJOUEUR ===
     public String getSessionId() { return sessionId; }
 
+    /** Le mot de passe n'apparaît jamais dans le texte affiché. */
     @Override
     public String toString() {
-        // Le mot de passe n'est jamais affiché
         return pseudo + " - partie " + identifiantPartie;
     }
 }

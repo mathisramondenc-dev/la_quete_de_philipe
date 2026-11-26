@@ -4,20 +4,39 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-/** Configuration JDBC centralisée (Singleton), selon le patron présenté au cours. */
+/**
+ * Point d'accès unique à la base MariaDB (patron Singleton vu en cours).
+ *
+ * Toutes les classes obtiennent leurs connexions ici, ce qui centralise les
+ * paramètres de connexion. Chaque paramètre se lit, dans l'ordre : propriété
+ * système (-Dlaquete.db.host=...), variable d'environnement (LAQUETE_DB_HOST),
+ * sinon valeur par défaut (serveur de l'école).
+ *
+ * Chaque appel ouvre une nouvelle connexion, que l'appelant ferme lui-même
+ * (try-with-resources). Au premier appel, les tables multijoueur sont créées
+ * si besoin et mises à niveau si elles viennent d'une ancienne version du
+ * jeu, pour qu'un poste à jour fonctionne même sur une base plus ancienne.
+ */
 public final class ConnexionBDD {
     private static final ConnexionBDD INSTANCE = new ConnexionBDD();
+    /** Vrai une fois le schéma vérifié : la vérification n'est faite qu'une fois par lancement. */
     private static volatile boolean schemaMultijoueurPret;
     private ConnexionBDD() { }
     public static ConnexionBDD getInstance() { return INSTANCE; }
 
+    /** @return propriété système, sinon variable d'environnement, sinon valeur par défaut */
     private String parametre(String propriete, String variable, String defaut) {
         String v = System.getProperty(propriete);
         if (v == null || v.isEmpty()) v = System.getenv(variable);
         return v == null || v.isEmpty() ? defaut : v;
     }
 
-    /** Ouvre une connexion à usage exclusif; le demandeur la ferme avec try-with-resources. */
+    /**
+     * Ouvre une connexion et s'assure que le schéma multijoueur est prêt.
+     *
+     * @return connexion neuve, à fermer par l'appelant
+     * @throws SQLException si la base est injoignable ou le schéma impossible à préparer
+     */
     public Connection getConnection() throws SQLException {
         String h = parametre("laquete.db.host", "LAQUETE_DB_HOST", "nemrod.ens2m.fr");
         String p = parametre("laquete.db.port", "LAQUETE_DB_PORT", "3306");
@@ -36,7 +55,15 @@ public final class ConnexionBDD {
         }
     }
 
-    /** Crée ou migre les tables nécessaires avant toute opération multijoueur. */
+    /**
+     * Crée les tables multijoueur absentes puis les met à niveau :
+     * - partie_multi : une ligne par partie (code, mot de passe, niveau atteint) ;
+     * - joueur_multi : une ligne par joueur connecté (position, chef, dernier signe de vie) ;
+     * - levier_multi / ingredient_multi : état partagé des leviers et ingrédients
+     *   ramassés, par partie et par niveau.
+     * Les deux dernières ne contiennent que des états temporaires : si leur
+     * format est trop ancien, elles sont simplement recréées.
+     */
     private static synchronized void assurerSchemaMultijoueur(Connection c) throws SQLException {
         if (schemaMultijoueurPret) return;
         try (java.sql.Statement s = c.createStatement()) {
@@ -46,8 +73,7 @@ public final class ConnexionBDD {
             s.executeUpdate("CREATE TABLE IF NOT EXISTS ingredient_multi (code_partie VARCHAR(40) NOT NULL, niveau_id INT NOT NULL, ingredient_id VARCHAR(100) NOT NULL, PRIMARY KEY(code_partie,niveau_id,ingredient_id), CONSTRAINT fk_ingredient_multi_partie FOREIGN KEY(code_partie) REFERENCES partie_multi(code_partie) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         }
 
-        // Les tables préexistantes ne sont pas mises à jour par CREATE IF NOT EXISTS.
-        // Leurs lignes sont uniquement des états temporaires de partie : on peut les recréer.
+        // Ancien format sans niveau_id : CREATE IF NOT EXISTS ne le corrige pas, on recrée
         if (!colonneExiste(c, "levier_multi", "niveau_id")
                 || !colonneExiste(c, "ingredient_multi", "niveau_id")) {
             System.err.println("[BDD] Schéma multijoueur ancien détecté : recréation de levier_multi et ingredient_multi (états temporaires supprimés).");
@@ -61,8 +87,7 @@ public final class ConnexionBDD {
             }
         }
 
-        // Les colonnes partagées ajoutées après le premier schéma sont migrées sans
-        // toucher aux comptes/sessions ni à la table historique joueur.
+        // Colonnes ajoutées après coup : ajout sans perte des parties et joueurs existants
         ajouterColonneSiAbsente(c, "partie_multi", "niveau_courant",
                 "ALTER TABLE partie_multi ADD COLUMN niveau_courant INT NOT NULL DEFAULT 1");
         ajouterColonneSiAbsente(c, "joueur_multi", "avatar_actuel",
@@ -70,18 +95,21 @@ public final class ConnexionBDD {
         schemaMultijoueurPret = true;
     }
 
+    /**
+     * Exécute l'ALTER TABLE donné si la colonne manque. Un échec est ignoré
+     * si la colonne existe finalement (un autre joueur l'a ajoutée au même moment).
+     */
     private static void ajouterColonneSiAbsente(Connection c, String table, String colonne,
                                                   String sql) throws SQLException {
         if (colonneExiste(c, table, colonne)) return;
         try (java.sql.Statement s = c.createStatement()) {
             s.executeUpdate(sql);
         } catch (SQLException e) {
-            // Une autre instance peut avoir appliqué la même migration simultanément.
             if (!colonneExiste(c, table, colonne)) throw erreurSchema("ajout de " + table + "." + colonne, e);
         }
     }
 
-    /** Recherche exacte dans le catalogue MariaDB, sans jokers de motif JDBC. */
+    /** Interroge le catalogue INFORMATION_SCHEMA de la base courante. */
     private static boolean colonneExiste(Connection c, String table, String colonne) throws SQLException {
         String sql = "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS "
                 + "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=? LIMIT 1";
@@ -94,6 +122,7 @@ public final class ConnexionBDD {
         }
     }
 
+    /** Emballe une erreur SQL avec le nom de l'opération pour un message plus clair. */
     private static SQLException erreurSchema(String operation, SQLException cause) {
         return new SQLException("Échec de la " + operation + " du schéma multijoueur : "
                 + cause.getMessage() + " (SQLState=" + cause.getSQLState()

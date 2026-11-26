@@ -1,4 +1,3 @@
-// EcranTransition.java
 package delaterrealassiette;
 
 import java.awt.AlphaComposite;
@@ -26,9 +25,12 @@ import javax.imageio.ImageIO;
  * ________________________________________________________________ */
 public class EcranTransition {
 
-    public static final int DUREE_TICS = 75;        // 3 s à 25 tics par seconde
-    public static final int TICS_AVANT_PASSER = 25; // 1 s avant de pouvoir passer
-    private static final int TICS_FONDU = 8;        // apparition / disparition
+    /** Durée totale : 3 s à 25 ticks par seconde. */
+    public static final int DUREE_TICS = 75;
+    /** Délai avant de pouvoir passer l'écran : 1 s. */
+    public static final int TICS_AVANT_PASSER = 25;
+    /** Durée du fondu d'apparition et de disparition. */
+    private static final int TICS_FONDU = 8;
 
     private static final Color COULEUR_FOND = new Color(18, 20, 28);
     private static final Color COULEUR_OR = new Color(255, 220, 95);
@@ -43,28 +45,22 @@ public class EcranTransition {
     private int niveauSuivant;
     private boolean espacePrecedemmentAppuye;
 
-    /* ________________________________________________________________
-     * ACTION : Lance la transition entre deux niveaux.
-     * ________________________________________________________________ */
     public void demarrer(int niveauTermine, int niveauSuivant) {
         this.niveauTermine = niveauTermine;
         this.niveauSuivant = niveauSuivant;
         ticsRestants = DUREE_TICS;
-        espacePrecedemmentAppuye = true; // ignore un Espace déjà enfoncé
+        // Un Espace déjà enfoncé (saut) ne doit pas passer l'écran
+        espacePrecedemmentAppuye = true;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si la transition est en cours.
-     * ________________________________________________________________ */
     public boolean estActive() {
         return ticsRestants > 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Avance la transition d'un tic.
-     * [INFO] Un nouvel appui sur Espace (après 1 s) passe directement
-     *        à la fin du fondu de sortie.
-     * ________________________________________________________________ */
+    /**
+     * Avance d'un tick ; un nouvel appui sur Espace (front montant) après le
+     * délai minimal saute directement au fondu de sortie.
+     */
     public void avancer(boolean espaceAppuye) {
         if (!estActive()) {
             return;
@@ -79,9 +75,7 @@ public class EcranTransition {
         ticsRestants--;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine l'écran de transition par-dessus l'image du jeu.
-     * ________________________________________________________________ */
+    /** Dessine l'écran par-dessus l'image du jeu, avec l'opacité du fondu en cours. */
     public void dessiner(Graphics2D contexte, int largeur, int hauteur) {
         int ticsEcoules = DUREE_TICS - ticsRestants;
         float opacite = Math.min(1f, Math.min(ticsEcoules, ticsRestants) / (float) TICS_FONDU);
@@ -108,7 +102,7 @@ public class EcranTransition {
         dessinerTexteCentre(contexte, "NIVEAU " + niveauSuivant,
                 new Font("SansSerif", Font.BOLD, 140), centreTexteX, centreY + 40);
 
-        // Barre de chargement
+        // Barre de chargement : pleine juste avant le fondu de sortie
         int largeurBarre = 600;
         int hauteurBarre = 16;
         int xBarre = centreTexteX - largeurBarre / 2;

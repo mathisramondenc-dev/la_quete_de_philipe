@@ -1,11 +1,24 @@
 package delaterrealassiette;
 
-/* ________________________________________________________________
- * ACTION : Gère les quatre avatars, les intentions et les données du joueur.
- * [INFO] Les ordonnées augmentent vers le haut.
- * [DEPENDANCE] Entite conserve la map partagée et résout les déplacements.
- * ________________________________________________________________ */
+/**
+ * Personnage contrôlé par le joueur local.
+ *
+ * Le joueur possède quatre chefs (Avatar) et en incarne un à la fois : la
+ * vitesse, la force de saut, la hitbox et le sprite sont lus sur l'avatar
+ * actif, ce qui permet de changer de chef sans recréer l'objet. Pseudo, points
+ * de vie, score et recharge du soin appartiennent au joueur, pas à l'avatar.
+ *
+ * Stratégie d'entrée : le clavier n'agit pas directement sur le personnage.
+ * miseAJourIntentions() traduit l'état des touches en « intentions » (aller à
+ * gauche, sauter, devenir Lignac...), puis mettreAJour() les applique pendant
+ * le tick. Les actions ponctuelles (saut, levier, soin) ne se déclenchent qu'à
+ * l'appui (front montant), pas tant que la touche reste enfoncée.
+ *
+ * Compétences : Etchebest pousse les caisses (voir Entite), Tarayre active
+ * les leviers, Maite soigne avec un temps de recharge.
+ */
 public class Joueur extends Entite {
+    /** Index des touches dans le tableau fourni par ClavierSouris. */
     public static final int toucheHaut = 0;
     public static final int toucheBas = 1;
     public static final int toucheGauche = 2;
@@ -28,6 +41,7 @@ public class Joueur extends Entite {
     private final Avatar maite;
     private Avatar avatarActuel;
 
+    // Intentions calculées depuis le clavier, consommées pendant le tick
     private boolean allerGauche;
     private boolean allerDroite;
     private boolean sautDemande;
@@ -41,12 +55,13 @@ public class Joueur extends Entite {
     private boolean devenirMaite;
     private boolean soinDemande;
     private int tempsRechargeSoin;
+    /** Durée de recharge du soin de Maite, en ticks. */
     private static final int dureeRechargeSoin = 375;
 
-    /* ________________________________________________________________
-     * ACTION : Initialise le joueur et ses quatre avatars.
-     * [DEPENDANCE] Jeu transmet son unique instance de Map.
-     * ________________________________________________________________ */
+    /**
+     * Crée le joueur avec ses quatre chefs ; Etchebest est incarné au départ.
+     * Caractéristiques : (vitesse, force de saut, hitbox largeur x hauteur).
+     */
     public Joueur(Map map, String pseudo) {
         super(map, 0, 0);
         this.pseudo = pseudo;
@@ -66,10 +81,10 @@ public class Joueur extends Entite {
         chargerImage(avatarActuel.getCheminImage());
     }
 
-    /* ________________________________________________________________
-     * ACTION : Recrée le joueur sur une nouvelle carte en conservant son état.
-     * [INFO] Les vitesses et les intentions repartent à zéro.
-     * ________________________________________________________________ */
+    /**
+     * Copie le joueur sur la carte d'un nouveau niveau : chef, PV, score et
+     * recharge sont conservés, vitesses et intentions repartent de zéro.
+     */
     public Joueur(Map nouvelleCarte, Joueur joueurPrecedent) {
         this(nouvelleCarte, joueurPrecedent.pseudo);
         avatarActuel = joueurPrecedent.avatarActuel;
@@ -79,11 +94,11 @@ public class Joueur extends Entite {
         tempsRechargeSoin = joueurPrecedent.tempsRechargeSoin;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Change l'avatar contrôlé si sa hitbox peut tenir sur la carte.
-     * [INFO] Les pieds restent à la même hauteur et la hitbox reste centrée.
-     * [DEPENDANCE] Map vérifie les tuiles solides et les portes fermées.
-     * ________________________________________________________________ */
+    /**
+     * Change de chef si la nouvelle hitbox tient à l'endroit actuel.
+     * Les pieds restent à la même hauteur et le personnage reste centré ;
+     * si le nouveau chef rentrerait dans un mur, le changement est refusé.
+     */
     public void changerChef(Avatar nouvelAvatar) {
         if (avatarActuel == nouvelAvatar) {
             return;
@@ -104,78 +119,56 @@ public class Joueur extends Entite {
         chargerImage(avatarActuel.getCheminImage());
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'avatar actuellement contrôlé.
-     * ________________________________________________________________ */
+    // ----- Accès aux chefs -----
+
     public Avatar getAvatarActuel() {
         return avatarActuel;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le profil Etchebest.
-     * ________________________________________________________________ */
     public Avatar getEtchebest() {
         return etchebest;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le profil Lignac.
-     * ________________________________________________________________ */
     public Avatar getLignac() {
         return lignac;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le profil Tarayre.
-     * ________________________________________________________________ */
     public Avatar getTarayre() {
         return tarayre;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le profil Maite.
-     * ________________________________________________________________ */
     public Avatar getMaite() {
         return maite;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la vitesse de l'avatar actif.
-     * ________________________________________________________________ */
+    // ----- Caractéristiques déléguées à l'avatar actif -----
+
     @Override
     public int getVitesse() {
         return avatarActuel.getVitesseDeplacementX();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne l'impulsion de l'avatar actif.
-     * ________________________________________________________________ */
     @Override
     public int getForceSaut() {
         return avatarActuel.getForceSaut();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la hitbox de l'avatar actif.
-     * ________________________________________________________________ */
     @Override
     public int[] getHitbox() {
         return avatarActuel.getHitbox();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le chemin de l'image de l'avatar actif.
-     * ________________________________________________________________ */
     @Override
     public String getCheminImage() {
         return avatarActuel.getCheminImage();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Applique les intentions, la gravité et le saut.
-     * [INFO] L'origine de la hitbox est le coin inférieur gauche.
-     * [DEPENDANCE] La map détecte les collisions et Entite résout les déplacements.
-     * ________________________________________________________________ */
+    /**
+     * Tick du joueur : changement de chef, vitesse horizontale et orientation,
+     * saut (autorisé au sol ou sur une échelle), gravité, puis déplacement.
+     * La force de saut est réappliquée après la gravité pour que celle-ci ne
+     * l'écrase pas.
+     */
     @Override
     public void mettreAJour() {
         if (devenirEtchebest) {
@@ -215,6 +208,7 @@ public class Joueur extends Entite {
         if (sautDemande && sautPossible) {
             vitesseY = getForceSaut();
         }
+        // Permet de descendre une échelle quand on se tient sur son sommet
         if (descendreDemande && estSurEchelle && estAuSol) {
             vitesseY = -getVitesse();
         }
@@ -222,10 +216,13 @@ public class Joueur extends Entite {
         deplacer();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Enregistre les intentions issues des touches.
-     * [INFO] Le saut est demandé uniquement au nouvel appui.
-     * ________________________________________________________________ */
+    /**
+     * Traduit l'état du clavier en intentions pour le prochain tick.
+     * Appelée une fois par tick ; c'est aussi elle qui décompte la recharge
+     * du soin.
+     *
+     * @param touchesAppuyees état des touches, indexé par les constantes touche*
+     */
     public void miseAJourIntentions(boolean[] touchesAppuyees) {
         allerGauche = touchesAppuyees[toucheGauche];
         allerDroite = touchesAppuyees[toucheDroite];
@@ -241,6 +238,7 @@ public class Joueur extends Entite {
             tempsRechargeSoin--;
         }
 
+        // La touche de compétence a un effet différent selon le chef incarné
         utiliserCompetence = touchesAppuyees[toucheCompetence];
         if (utiliserCompetence && !toucheCompetencePrecedemmentAppuyee
                 && "Tarayre".equals(avatarActuel.getNom())) {
@@ -258,20 +256,23 @@ public class Joueur extends Entite {
         devenirMaite = touchesAppuyees[toucheMaite];
     }
 
-    /* ________________________________________________________________
-     * ACTION : Consomme la demande d'activation du levier.
-     * [INFO] Seul Tarayre transforme un nouvel appui sur E en demande.
-     * ________________________________________________________________ */
+    /**
+     * Lit puis efface la demande d'activation de levier (Tarayre).
+     * Le principe « lire et effacer » garantit qu'un appui n'agit qu'une fois.
+     *
+     * @return true si une activation était en attente
+     */
     public boolean consommerActivationLevier() {
         boolean demandee = activationLevierDemandee;
         activationLevierDemandee = false;
         return demandee;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Consomme la demande de soin de Maite et lance son rechargement.
-     * [INFO] La recharge appartient au joueur et non à son avatar.
-     * ________________________________________________________________ */
+    /**
+     * Lit puis efface la demande de soin (Maite) et lance la recharge.
+     *
+     * @return true si un soin doit être appliqué
+     */
     public boolean consommerSoinDemande() {
         boolean demandee = soinDemande;
         soinDemande = false;
@@ -281,66 +282,47 @@ public class Joueur extends Entite {
         return demandee;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne la progression du rechargement du soin.
-     * ________________________________________________________________ */
+    /** @return avancement de la recharge du soin, de 0.0 (vient d'être utilisé) à 1.0 (prêt) */
     public double getProgressionRechargeSoin() {
         return 1.0 - (double) tempsRechargeSoin / dureeRechargeSoin;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le nom de l'avatar actif.
-     * ________________________________________________________________ */
+    // ----- Identité, vie et score -----
+
     public String getNomAvatarActuel() {
         return avatarActuel.getNom();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le pseudo du joueur.
-     * ________________________________________________________________ */
     public String getPseudo() {
         return pseudo;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le maximum de points de vie.
-     * ________________________________________________________________ */
     public int getPointsDeVieMax() {
         return pointsDeVieMax;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne les points de vie actuels.
-     * ________________________________________________________________ */
     public int getPointsDeVie() {
         return pointsDeVie;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Modifie les points de vie dans leurs limites.
-     * ________________________________________________________________ */
+    /**
+     * Ajoute (soin) ou retire (dégâts) des points de vie, bornés entre 0 et le maximum.
+     *
+     * @param montant valeur positive ou négative
+     */
     public void modifierPointsDeVie(int montant) {
         pointsDeVie = Math.max(0,
                 Math.min(pointsDeVieMax, pointsDeVie + montant));
     }
 
-    /* ________________________________________________________________
-     * ACTION : Indique si le joueur est mort.
-     * ________________________________________________________________ */
     public boolean estMort() {
         return pointsDeVie <= 0;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Retourne le score du joueur.
-     * ________________________________________________________________ */
     public int getScore() {
         return score;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ajoute des points au score.
-     * ________________________________________________________________ */
     public void ajouterScore(int points) {
         score += points;
     }

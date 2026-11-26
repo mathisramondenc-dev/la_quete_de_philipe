@@ -1,4 +1,3 @@
-// FenetreMenu.java
 package delaterrealassiette;
 
 import java.awt.BorderLayout;
@@ -10,27 +9,25 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
-/* ________________________________________________________________
- * ACTION : Menu d'accueil avec le titre et le choix du mode de jeu.
- * [INFO] En haut : Héberger / Rejoindre (multijoueur), puis Contrôles.
- *        En bas : lancement direct d'un niveau ou de l'écran de
- *        debug, pratique pour tester sans passer par la connexion.
- * [INFO] Le menu s'ouvre en plein écran (fenêtre maximisée).
- * [INFO] L'image de fond (les 4 chefs) est gérée par Fenetre : elle
- *        remplit tout l'écran sans être déformée.
- * [DEPENDANCE] Main ouvre cette fenêtre. Elle ouvre FenetreHeberger,
- *              FenetreRejoindre, FenetreControles ou directement FenetreDeJeu.
- * ________________________________________________________________ */
+/**
+ * Menu d'accueil, premier écran affiché au lancement.
+ *
+ * Trois rangées de boutons :
+ * 1) multijoueur : Héberger ou Rejoindre une partie ;
+ * 2) Contrôles : rappel des touches ;
+ * 3) tests : lancement direct d'un niveau, en solo, ou de l'écran de debug,
+ *    pour tester sans passer par la base de données.
+ *
+ * La navigation suit toujours le même principe : on ouvre l'écran suivant
+ * puis on ferme le menu (une seule fenêtre ouverte à la fois).
+ */
 public class FenetreMenu extends Fenetre {
 
-    /* ________________________________________________________________
-     * ACTION : Construit le menu.
-     * ________________________________________________________________ */
     public FenetreMenu() {
         super();
 
-        JPanel fond = creerPanneauFond(true); // image des 4 chefs (voir Fenetre)
-        fond.setPreferredSize(new Dimension(1280, 720)); // taille si on quitte le plein écran
+        JPanel fond = creerPanneauFond(true);
+        fond.setPreferredSize(new Dimension(1280, 720)); // taille hors plein écran
 
         JLabel titre = creerTexte(TITRE, t(64), true);
         titre.setHorizontalAlignment(JLabel.CENTER);
@@ -41,10 +38,9 @@ public class FenetreMenu extends Fenetre {
         centre.setOpaque(false);
         GridBagConstraints placement = new GridBagConstraints();
 
-        // Ligne 1 : multijoueur
+        // Rangée 1 : multijoueur
         placement.gridy = 0;
         placement.insets = new Insets(0, t(15), t(40), t(15));
-        // === MULTIJOUEUR === Hébergement et entrée dans une partie via MariaDB.
         JPanel multijoueur = new JPanel(new GridBagLayout());
         multijoueur.setOpaque(false);
         GridBagConstraints cMulti = new GridBagConstraints();
@@ -56,13 +52,13 @@ public class FenetreMenu extends Fenetre {
                 e -> ouvrir(new FenetreRejoindre())), cMulti);
         centre.add(multijoueur, placement);
 
-        // Ligne 2 : écran des contrôles (touches du jeu)
+        // Rangée 2 : contrôles
         placement.gridy = 1;
         placement.insets = new Insets(0, t(15), t(40), t(15));
         centre.add(creerBouton("Contrôles", t(300), t(60), t(24),
                 e -> ouvrir(new FenetreControles())), placement);
 
-        // Ligne 3 : tests rapides (sans multijoueur)
+        // Rangée 3 : tests en solo
         JPanel tests = new JPanel(new GridBagLayout());
         tests.setOpaque(false);
         GridBagConstraints placementTest = new GridBagConstraints();
@@ -85,18 +81,17 @@ public class FenetreMenu extends Fenetre {
     }
 
 
-    /* ________________________________________________________________
-     * ACTION : Ouvre une autre fenêtre et ferme le menu.
-     * ________________________________________________________________ */
+    /** Affiche la fenêtre donnée et ferme le menu. */
     private void ouvrir(Fenetre fenetre) {
         fenetre.setVisible(true);
         dispose();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ferme le menu et ouvre la fenêtre de jeu.
-     * [INFO] Sans Jeu (null), la fenêtre affiche l'écran de debug.
-     * ________________________________________________________________ */
+    /**
+     * Lance une partie solo et ferme le menu.
+     *
+     * @param jeu partie à lancer, ou null pour l'écran de debug
+     */
     private void lancerPartie(Jeu jeu) {
         FenetreDeJeu fenetreDeJeu = new FenetreDeJeu(jeu);
         fenetreDeJeu.setVisible(true);

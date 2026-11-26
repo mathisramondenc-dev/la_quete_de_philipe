@@ -1,4 +1,3 @@
-// FenetreControles.java
 package delaterrealassiette;
 
 import java.awt.BorderLayout;
@@ -22,21 +21,23 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
 
-/* ________________________________________________________________
- * ACTION : Écran "Contrôles" : affiche toutes les touches du jeu et
- *          l'action de chacune (déplacements, chefs, compétence...).
- * [INFO] S'ouvre en plein écran depuis le menu. Retour ou Échap pour
- *        revenir au menu.
- * [INFO] Les touches affichées sont celles de ClavierSouris (et F11 de
- *        FenetreDeJeu) : penser à mettre ce texte à jour si elles changent.
- * [DEPENDANCE] Ouverte par FenetreMenu.
- * ________________________________________________________________ */
+/**
+ * Écran « Contrôles » : liste des touches du jeu et de leur effet, ouvert
+ * depuis le menu (Retour ou Échap pour y revenir).
+ *
+ * Le contenu est décrit par des tableaux de données {touches, action,
+ * détail} regroupés par section ; ajouterSection() les met en page en deux
+ * colonnes. Modifier l'écran revient donc à modifier ces tableaux.
+ * Attention : ce texte n'est pas lié au code des touches (ClavierSouris,
+ * F11 dans FenetreDeJeu) ; il faut le mettre à jour à la main si elles
+ * changent.
+ */
 public class FenetreControles extends Fenetre {
 
     private static final Color COULEUR_SECTION = new Color(255, 220, 95);
     private static final Color COULEUR_DETAIL = new Color(200, 195, 185);
 
-    // Lignes de l'écran : touches (séparées par " ou ") | action | détail
+    // Une ligne = {touches séparées par " ou ", action, détail facultatif}
     private static final String[][] DEPLACEMENTS = {
         {"Q ou ←", "Aller à gauche", ""},
         {"D ou →", "Aller à droite", ""},
@@ -61,13 +62,10 @@ public class FenetreControles extends Fenetre {
         {"E", "Maïté : soigne", "elle et les joueurs proches, toutes les 15 s"}
     };
 
-    /* ________________________________________________________________
-     * ACTION : Construit l'écran des contrôles.
-     * ________________________________________________________________ */
+    /** Construit l'écran : colonne gauche (déplacements, autres), colonne droite (chefs, compétence). */
     public FenetreControles() {
         super();
 
-        // Deux colonnes : déplacements + autres | chefs + compétence
         JPanel colonnes = new JPanel(new GridBagLayout());
         colonnes.setOpaque(false);
         GridBagConstraints placement = new GridBagConstraints();
@@ -86,7 +84,6 @@ public class FenetreControles extends Fenetre {
         placement.insets = new Insets(0, t(30), 0, 0);
         colonnes.add(droite, placement);
 
-        // Bouton Retour
         JButton boutonRetour = creerBouton("Retour", t(220), t(56), t(22), e -> retourMenu());
         JPanel bas = new JPanel(new FlowLayout(FlowLayout.CENTER));
         bas.setOpaque(false);
@@ -111,10 +108,13 @@ public class FenetreControles extends Fenetre {
         return colonne;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Ajoute un titre de section puis ses lignes dans une colonne.
-     * [INFO] Retourne le numéro de la ligne suivante.
-     * ________________________________________________________________ */
+    /**
+     * Ajoute à la colonne un titre de section suivi d'une ligne par entrée
+     * (touches à gauche, action et détail à droite).
+     *
+     * @param ligne première ligne libre dans la grille de la colonne
+     * @return première ligne libre après la section
+     */
     private int ajouterSection(JPanel colonne, int ligne, String titre, String[][] lignes) {
         GridBagConstraints placement = new GridBagConstraints();
         placement.gridx = 0;
@@ -142,9 +142,7 @@ public class FenetreControles extends Fenetre {
         return ligne;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée les touches d'une ligne ("Q ou ←" -> [Q] ou [←]).
-     * ________________________________________________________________ */
+    /** "Q ou ←" devient deux touches dessinées [Q] ou [←]. */
     private JPanel creerTouches(String texte) {
         JPanel touches = new JPanel(new FlowLayout(FlowLayout.LEFT, t(6), 0));
         touches.setOpaque(false);
@@ -159,9 +157,7 @@ public class FenetreControles extends Fenetre {
         return touches;
     }
 
-    /* ________________________________________________________________
-     * ACTION : Crée le texte d'une action, avec son détail en plus petit.
-     * ________________________________________________________________ */
+    /** Action en gras, détail en plus petit en dessous (mise en forme HTML du JLabel). */
     private JLabel creerAction(String action, String detail) {
         String html = "<html><b>" + action + "</b>"
                 + (detail.isEmpty() ? "" : "<br><span style='font-size:" + t(15)
@@ -174,9 +170,7 @@ public class FenetreControles extends Fenetre {
         return texte;
     }
 
-    /* ________________________________________________________________
-     * ACTION : La touche Échap ramène au menu.
-     * ________________________________________________________________ */
+    /** Associe la touche Échap au retour au menu. */
     private void fermerAvecEchap() {
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
                 .put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "retourMenu");
@@ -188,18 +182,15 @@ public class FenetreControles extends Fenetre {
         });
     }
 
-    /* ________________________________________________________________
-     * ACTION : Revient au menu principal.
-     * ________________________________________________________________ */
     private void retourMenu() {
         new FenetreMenu().setVisible(true);
         dispose();
     }
 
-    /* ________________________________________________________________
-     * ACTION : Dessine une touche de clavier (carré clair arrondi avec
-     *          le nom de la touche).
-     * ________________________________________________________________ */
+    /**
+     * Étiquette dessinée comme une touche de clavier : dessus clair, dessous
+     * plus foncé pour l'effet de relief, texte centré sur le dessus.
+     */
     private class Touche extends JLabel {
 
         Touche(String nom) {
@@ -216,12 +207,11 @@ public class FenetreControles extends Fenetre {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             int arrondi = t(10);
             int relief = t(4);
-            g.setColor(new Color(150, 145, 140));          // dessous de la touche
+            g.setColor(new Color(150, 145, 140));
             g.fillRoundRect(0, relief, getWidth(), getHeight() - relief, arrondi, arrondi);
-            g.setColor(new Color(240, 236, 228));          // dessus de la touche
+            g.setColor(new Color(240, 236, 228));
             g.fillRoundRect(0, 0, getWidth(), getHeight() - relief, arrondi, arrondi);
             g.dispose();
-            // Le texte, un peu remonté pour être centré sur le dessus
             Graphics2D gTexte = (Graphics2D) graphismes.create();
             gTexte.translate(0, -relief / 2);
             super.paintComponent(gTexte);
