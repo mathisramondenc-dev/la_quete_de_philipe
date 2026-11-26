@@ -210,13 +210,40 @@ public class GestionBDD {
         String id = UUID.randomUUID().toString();
         try (Connection c = ConnexionBDD.getInstance().getConnection()) {
             c.setAutoCommit(false);
-            try (PreparedStatement p = c.prepareStatement("INSERT INTO partie_multi(code_partie,mot_de_passe) VALUES (?,?)")) {
-                p.setString(1, code); p.setString(2, motDePasse); p.executeUpdate();
+            try {
+                try (PreparedStatement p = c.prepareStatement(
+                        "INSERT INTO partie_multi(code_partie,mot_de_passe) VALUES (?,?)")) {
+                    p.setString(1, code);
+                    p.setString(2, motDePasse);
+                    p.executeUpdate();
+                }
+                // Un nouvel hôte démarre avec des mécanismes et ingrédients vierges.
+                reinitialiserEtatsMultijoueur(c, code);
+                inscrire(c, id, code, pseudo);
+                c.commit();
+                return new InfosPartie(pseudo, code, motDePasse, id);
+            } catch (SQLException e) {
+                try {
+                    c.rollback();
+                } catch (SQLException erreurRollback) {
+                    e.addSuppressed(erreurRollback);
+                }
+                throw e;
             }
-            inscrire(c, id, code, pseudo);
-            c.commit();
-            return new InfosPartie(pseudo, code, motDePasse, id);
-        } catch (SQLException e) { throw e; }
+        }
+    }
+
+    /** Efface seulement les états de jeu de la salle, sans toucher au schéma historique. */
+    private static void reinitialiserEtatsMultijoueur(Connection c, String code) throws SQLException {
+        String[] tables = {"levier_multi", "ingredient_multi"};
+        for (String table : tables) {
+            // Les noms viennent de cette liste interne; le code de partie reste paramétré.
+            try (PreparedStatement p = c.prepareStatement(
+                    "DELETE FROM " + table + " WHERE code_partie=?")) {
+                p.setString(1, code);
+                p.executeUpdate();
+            }
+        }
     }
 
     // === MULTIJOUEUR === Vérifie la partie et son mot de passe avant l'inscription.
@@ -267,6 +294,7 @@ public class GestionBDD {
 
     // === MULTIJOUEUR === Publication des actions locales, puis lecture de l'état partagé.
     private static void synchroniserObjets(Connection c, InfosPartie infos, Jeu jeu) throws SQLException {
+        // Le lot est confirmé seulement après le succès de toutes ses écritures.
         for (Integer niveauModifie : jeu.getNiveauxModifies()) {
             java.util.Map<Integer, Boolean> leviersLocaux = jeu.getLeviersModifies(niveauModifie);
             Set<String> ingredientsLocaux = jeu.getIngredientsModifies(niveauModifie);
