@@ -182,10 +182,23 @@ public class Map {
                         // La largeur et la hauteur sont facultatives : 1 par défaut
                         int colonne = Integer.parseInt(champs[1]);
                         int ligneGrille = Integer.parseInt(champs[2]);
-                        int largeurMortelle = champs.length > 3
-                                ? Integer.parseInt(champs[3]) : 1;
-                        int hauteurMortelle = champs.length > 4
-                                ? Integer.parseInt(champs[4]) : 1;
+
+                        // Largeur : 4e mot de la ligne s'il existe, sinon 1 tuile
+                        int largeurMortelle;
+                        if (champs.length > 3) {
+                            largeurMortelle = Integer.parseInt(champs[3]);
+                        } else {
+                            largeurMortelle = 1;
+                        }
+
+                        // Hauteur : 5e mot de la ligne s'il existe, sinon 1 tuile
+                        int hauteurMortelle;
+                        if (champs.length > 4) {
+                            hauteurMortelle = Integer.parseInt(champs[4]);
+                        } else {
+                            hauteurMortelle = 1;
+                        }
+
                         int positionX = colonne * tailleTuile;
                         // ligneGrille est la ligne du HAUT de la zone : le bas de la zone
                         // est donc hauteurMortelle tuiles plus bas
